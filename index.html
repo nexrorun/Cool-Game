@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>UberThump</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Press Start 2P', 'Space Mono', monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-font-smoothing: none;
+            font-smooth: never;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #dev-unlock {
+            position: fixed;
+            top: 4px;
+            left: 4px;
+            width: 10px;
+            height: 10px;
+            padding: 0;
+            border: none;
+            background: #222;
+            color: transparent;
+            cursor: pointer;
+            z-index: 50;
+            opacity: 0.4;
+        }
+
+        #dev-unlock:hover {
+            opacity: 0.9;
+            background: #555;
+        }
+
+        #top-hud {
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            pointer-events: none;
+        }
+
+        #multiplayer-hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: none;
+            padding: 15px;
+        }
+
+        .mp-panel {
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(4px);
+            padding: 10px;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 280px;
+        }
+
+        #mp-left {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            align-items: flex-start;
+            border-color: #00ff88;
+        }
+
+        #mp-right {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            align-items: flex-end;
+            text-align: right;
+            border-color: #ff4444;
+        }
+
+        #mp-center {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffd700;
+            padding: 5px 15px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .mp-name {
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        .mp-char-name {
+            font-size: 0.6rem;
+            color: #aaa;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .mp-health-wrap {
+            width: 100%;
+            height: 16px;
+            background: #222;
+            border: 1px solid #555;
+            position: relative;
+            margin-bottom: 4px;
+        }
+
+        .mp-health-fill {
+            height: 100%;
+            width: 100%;
+            transition: width 0.2s;
+        }
+
+        .mp-health-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.65rem;
+            text-shadow: 1px 1px 0 #000;
+            white-space: nowrap;
+        }
+
+        .mp-stats-row {
+            display: flex;
+            gap: 10px;
+            font-size: 0.65rem;
+            color: #ccc;
+            margin-bottom: 4px;
+        }
+
+        .mp-list {
+            font-size: 0.6rem;
+            color: #ddd;
+            line-height: 1.3;
+            max-height: 150px;
+            overflow: hidden;
+        }
+
+        /* Transparent UI style */
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(2px);
+            padding: 8px 12px;
+            color: #fff;
+            image-rendering: pixelated;
+        }
+        
+        /* Minor Feature 3: Scanline effect on Menus */
+        #menu-ui-left::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        #stats-left {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #level-display {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        #xp-bar-container {
+            width: 180px;
+            height: 12px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #fff;
+            position: relative;
+        }
+
+        #xp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00aa55);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        #health-bar-container {
+            width: 220px;
+            height: 20px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #fff;
+            position: relative;
+        }
+
+        #health-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0044, #aa0022);
+            width: 100%;
+            transition: width 0.2s;
+        }
+
+        #health-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        #kill-counter {
+            font-size: 0.9rem;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        #top-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            pointer-events: auto; /* allow clicking buttons here */
+        }
+        
+        .top-btn-row {
+             display: flex;
+             gap: 8px;
+        }
+        
+        .icon-btn {
+            background: rgba(0,0,0,0.6);
+            border: 2px solid #fff;
+            color: #fff;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            padding: 6px 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .icon-btn:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        #timer {
+            font-size: 1.4rem;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        #loadout-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            padding: 8px 10px;
+            min-width: 160px;
+            max-width: 200px;
+            margin-top: 10px;
+            pointer-events: none;
+        }
+
+        .mini-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            color: #ffd700;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        #weapon-list,
+        #buff-list {
+            font-size: 0.7rem;
+            color: #eee;
+            line-height: 1.3;
+        }
+
+        #big-map-overlay {
+            position: absolute;
+            inset: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 4px solid #fff;
+            z-index: 60;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #big-map-overlay.active {
+            display: flex;
+        }
+
+        #big-map-canvas {
+            width: 90%;
+            height: 90%;
+            object-fit: contain;
+            border: 2px solid #555;
+            background: #111;
+        }
+
+        #upgrade-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #000;
+            border: 4px solid #ffd700;
+            padding: 30px;
+            display: none;
+            pointer-events: auto;
+            max-width: 90vw;
+            z-index: 100;
+        }
+
+        #upgrade-menu.active {
+            display: block;
+        }
+
+        #upgrade-menu h2 {
+            text-align: center;
+            color: #ffd700;
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+
+        .upgrade-options {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .upgrade-card {
+            background: #111;
+            border: 3px solid #fff;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 200px;
+        }
+
+        .upgrade-card:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: #ffd700;
+            transform: scale(1.05);
+        }
+
+        .upgrade-card h3 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .upgrade-card p {
+            color: #ccc;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: block;
+            pointer-events: auto;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        #menu-bg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            display: block;
+        }
+
+        #menu-ui-left {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 450px;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            z-index: 2;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .title-container {
+            margin-bottom: 40px;
+            position: relative;
+            z-index: 2;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #fff;
+            margin: 0;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 0 #000;
+            white-space: nowrap;
+        }
+
+        @keyframes hueSpin {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+
+
+
+        /* Centered title shown during character preview (selection screen).
+           Adds a darker backing for readability and shows the same animated underline
+           via a pseudo-element so the RGB strip appears under the centered title. */
+        #center-menu-title {
+            position: fixed;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            color: #fff;
+            font-family: "Press Start 2P", "Space Mono", monospace;
+            font-size: 1.4rem;
+            letter-spacing: 0.12em;
+            pointer-events: none;
+
+            /* Black highlight/backing to improve contrast */
+            background: rgba(0,0,0,0.65);
+            padding: 8px 14px;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+            text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.6);
+        }
+
+        /* Add the animated RGB underline below the centered title using a pseudo element */
+        #center-menu-title::after {
+            content: "";
+            display: block;
+            height: 6px;
+            margin-top: 10px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #ff0044, #ffaa00, #00ff88);
+            animation: expandLine 0.6s ease-out, rainbowShift 3s infinite;
+            width: 100%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5) inset;
+        }
+
+        @keyframes expandLine {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes rainbowShift {
+            0%, 100% { background: linear-gradient(90deg, #ff0044, #ffaa00, #00ff88); }
+            50% { background: linear-gradient(90deg, #00ff88, #ff0044, #ffaa00); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        #menu-view-intro {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        #menu-view-select {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 360px;
+        }
+
+        .menu-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        /* Old character details in left panel removed, moved to right side panel */
+        #character-details-panel {
+            position: absolute;
+            top: 50%;
+            right: 40px;
+            transform: translateY(-50%);
+            width: 300px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 4px solid #fff;
+            padding: 20px;
+            color: #fff;
+            z-index: 15;
+            display: none; /* Shown by JS */
+            box-shadow: -10px 10px 0 rgba(0,0,0,0.5);
+        }
+
+        #character-details-panel h2 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: #ffd700;
+            text-transform: uppercase;
+            line-height: 1.1;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        #character-details-panel .char-role {
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #00ff88;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #555;
+            padding-bottom: 10px;
+        }
+
+        #character-details-panel .char-stat-row {
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            border-bottom: 1px dashed #444;
+            padding-bottom: 4px;
+        }
+        
+        #character-details-panel .char-stat-row span:last-child {
+            color: #ddd;
+            font-weight: bold;
+        }
+
+        #character-details-panel .char-desc {
+            margin-top: 20px;
+            font-size: 0.85rem;
+            color: #ccc;
+            line-height: 1.6;
+        }
+        
+        #character-details-panel .char-unlock {
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff8888;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        /* Compass */
+        #compass-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 35px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid rgba(255,255,255,0.5);
+            overflow: hidden;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #compass-strip {
+            position: absolute;
+            display: flex;
+            gap: 100px; /* spacing between cardinal directions */
+            color: #fff;
+            font-weight: bold;
+            font-size: 1.2rem;
+            transition: transform 0.1s linear;
+        }
+        
+        #compass-marker {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 100%;
+            background: #ffd700;
+            z-index: 2;
+        }
+        
+        /* Objectives */
+        #objectives-box {
+            margin-top: 15px;
+            border-top: 2px solid rgba(255,255,255,0.3);
+            padding-top: 10px;
+        }
+        
+        .objective-header {
+            font-size: 0.8rem;
+            color: #ffd700;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .objective-item {
+            font-size: 0.75rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #fff;
+            display: inline-block;
+        }
+        
+        .checkbox.checked {
+            background: #00ff88;
+            border-color: #00ff88;
+        }
+
+        .pixel-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.75rem;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border: 2px solid #fff;
+            image-rendering: pixelated;
+        }
+
+        .pixel-toggle input {
+            width: 18px;
+            height: 18px;
+        }
+
+        .character-select {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            max-width: 420px;
+            width: 100%;
+        }
+
+        .character-card {
+            border: 2px solid #fff;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 9px;
+            color: #fff;
+            font-size: 0.7rem;
+            text-align: left;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.15s, opacity 0.15s;
+            position: relative;
+        }
+
+        .character-card h3 {
+            font-size: 0.75rem;
+            margin-bottom: 6px;
+            letter-spacing: 0.04em;
+            white-space: normal;         /* allow wrapping for long names */
+            word-break: break-word;      /* break long words */
+            overflow-wrap: anywhere;     /* ensure very long tokens wrap */
+            line-height: 1.05;
+        }
+
+        .character-card p {
+            font-size: 0.62rem;
+            line-height: 1.25;
+            opacity: 0.9;
+        }
+
+        .character-card span {
+            display: block;
+            font-size: 0.6rem;
+            margin-bottom: 2px;
+            opacity: 0.8;
+        }
+
+        .character-card.selected {
+            border-color: #ffd700;
+            box-shadow: 0 0 18px rgba(255,215,0,0.9);
+            background: rgba(0,0,0,0.9);
+            transform: translateY(-3px);
+        }
+
+        .character-card.locked {
+            opacity: 0.45;
+            border-color: #666;
+            box-shadow: none;
+            cursor: default;
+        }
+
+        .character-card.locked::after {
+            content: "LOCKED";
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            letter-spacing: 0.16em;
+            background: rgba(0,0,0,0.7);
+            color: #ff4444;
+        }
+        
+        .character-card.mp-locked {
+            opacity: 0.5;
+            filter: grayscale(100%);
+            border-color: #555;
+        }
+        
+        .character-card.mp-locked::after {
+            content: "TAKEN";
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            background: rgba(0,0,0,0.6);
+            color: #ffaa00;
+            transform: rotate(-15deg);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .feature-box {
+            padding: 16px;
+            background: #000;
+            border: 3px solid #fff;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            image-rendering: pixelated;
+        }
+
+        .feature-box:nth-child(2) {
+            background: linear-gradient(135deg, #ffaa00, #ff6600);
+            animation-delay: 0.2s;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
+        }
+
+        .feature-box:nth-child(3) {
+            background: linear-gradient(135deg, #00ff88, #00aa55);
+            animation-delay: 0.4s;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .feature-box:nth-child(4) {
+            background: linear-gradient(135deg, #0088ff, #0055aa);
+            animation-delay: 0.6s;
+            box-shadow: 0 0 20px rgba(0, 136, 255, 0.5);
+        }
+
+        button {
+            padding: 14px 32px;
+            font-size: 1rem;
+            background: #000;
+            color: white;
+            border: 4px solid #fff;
+            cursor: pointer;
+            font-family: 'Press Start 2P', monospace;
+            transition: background 0.1s, transform 0.1s;
+            letter-spacing: 0.12em;
+            font-weight: bold;
+            box-shadow: none;
+            image-rendering: pixelated;
+        }
+
+        button:hover {
+            background: linear-gradient(90deg, #ff6600, #ffaa00);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.6);
+            border-color: #ffd700;
+        }
+
+        #enter-game-btn {
+            font-size: 1.2rem;
+            padding: 20px 40px;
+            animation: pulse 2s infinite;
+        }
+
+        .menu-footer {
+            display: flex;
+            gap: 20px;
+            color: #fff;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .menu-footer span {
+            padding: 10px 20px;
+            border: 2px solid #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        #minimap-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 160px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid rgba(255,255,255,0.7);
+            border-radius: 4px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        #minimap {
+            width: 100%;
+            height: 100%;
+            display: block;
+            opacity: 0.9;
+        }
+
+        #game-over-screen {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            pointer-events: auto;
+            overflow-y: auto;
+            padding: 20px;
+            overflow: hidden; /* For rays/coins */
+        }
+
+        #game-over-screen.active {
+            display: flex;
+        }
+
+        /* God rays background */
+        #go-rays {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200vmax;
+            height: 200vmax;
+            background: repeating-conic-gradient(
+                from 0deg,
+                rgba(255, 215, 0, 0.15) 0deg,
+                rgba(255, 215, 0, 0.15) 15deg,
+                transparent 15deg,
+                transparent 30deg
+            );
+            transform: translate(-50%, -50%);
+            animation: rotateRays 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+            display: none; /* Active via JS */
+        }
+
+        @keyframes rotateRays {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Falling coins container */
+        #go-coins {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        .go-coin {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #ffd700;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px #ffd700;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(110vh) rotate(360deg); }
+        }
+
+        #game-over-content {
+            display: flex;
+            gap: 20px;
+            max-width: 1000px;
+            width: 100%;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 20; /* Above rays/coins */
+            position: relative;
+        }
+
+        #game-over-main {
+            background: #000;
+            border: 4px solid #ff0044;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 0, 68, 0.4);
+            flex: 1;
+            min-width: 300px;
+            animation: slideUp 0.5s ease-out;
+            position: relative;
+            z-index: 2;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        #game-over-main h2 {
+            font-size: 3rem;
+            color: #ff0044;
+            margin-bottom: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(255,0,68,0.8);
+            animation: pulseText 1s infinite alternate;
+        }
+
+        .score-display {
+            font-size: 1.5rem;
+            color: #ffd700;
+            margin: 15px 0;
+            text-shadow: 0 0 10px #ffd700;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+            text-align: left;
+            background: #111;
+            padding: 15px;
+            border: 1px solid #333;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #ccc;
+            border-bottom: 1px dashed #444;
+            padding-bottom: 4px;
+        }
+        .stat-item span:last-child { color: #fff; font-weight: bold; }
+
+        #unlocks-container {
+            margin: 20px 0;
+            min-height: 20px;
+        }
+        
+        .unlock-badge {
+            background: linear-gradient(135deg, #ffd700, #ffaa00);
+            color: #000;
+            font-weight: bold;
+            padding: 10px;
+            margin-bottom: 8px;
+            border: 2px solid #fff;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+
+        #restart-btn {
+            padding: 18px 50px;
+            font-size: 1.4rem;
+            background: #fff;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-family: 'Space Mono', monospace;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            transition: all 0.2s;
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+
+        #restart-btn:hover {
+            background: #ffd700;
+            transform: scale(1.05);
+            box-shadow: 0 0 35px rgba(255, 215, 0, 0.6);
+        }
+
+        #run-history {
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #444;
+            padding: 20px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none; /* Shown via JS */
+        }
+        
+        .history-entry {
+            border-bottom: 1px solid #333;
+            padding: 8px 0;
+            font-size: 0.7rem;
+            color: #aaa;
+            display: flex;
+            justify-content: space-between;
+        }
+        .history-entry.best { color: #ffd700; }
+
+        /* MP Aftermath */
+        #mp-aftermath {
+            width: 100%;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #333;
+            display: none;
+        }
+        
+        #mp-chat-box {
+            height: 150px;
+            background: #111;
+            border: 1px solid #444;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #ddd;
+        }
+        
+        .chat-msg { margin-bottom: 4px; word-break: break-word; }
+        .chat-msg .author { font-weight: bold; color: #888; }
+        .chat-msg.system { color: #ffd700; font-style: italic; }
+        .chat-msg.opponent .author { color: #ff4444; }
+        .chat-msg.me .author { color: #00ff88; }
+
+        #mp-chat-input-row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #mp-chat-input {
+            flex: 1;
+            background: #222;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 8px;
+            font-family: inherit;
+        }
+        
+        #mp-chat-send {
+            padding: 8px 16px;
+            background: #333;
+            border: 1px solid #fff;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.5rem; }
+            .upgrade-card { width: 150px; font-size: 0.8rem; }
+
+            #menu-ui-left {
+                width: 100%;
+                background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.8) 80%, transparent 100%);
+                padding: 20px;
+                padding-bottom: 80px;
+            }
+            
+            #menu-view-select {
+                max-width: 100%;
+            }
+            
+            .character-select {
+                max-width: 100%;
+            }
+        }
+
+        .unlock-note {
+            margin-top: 4px;
+            font-size: 0.55rem;
+            color: #ff6666;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        #loot-toast {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #ffd700;
+            color: #fff;
+            font-size: 1rem;
+            letter-spacing: 0.08em;
+            text-shadow: 0 0 6px rgba(0,0,0,0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+            z-index: 25;
+        }
+
+        #loot-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(6px);
+        }
+
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            pointer-events: auto;
+            color: #fff;
+            font-family: 'Space Mono', monospace;
+        }
+
+        #loading-overlay.active {
+            display: flex;
+        }
+
+        #loading-box {
+            padding: 20px 30px;
+            border: 3px solid #ffcc00;
+            box-shadow: 0 0 25px rgba(255, 204, 0, 0.9);
+            background: radial-gradient(circle at top, #1a1a1a, #000);
+            text-align: center;
+        }
+
+        #loading-box span {
+            display: block;
+            margin-top: 10px;
+            font-size: 1rem;
+            letter-spacing: 0.15em;
+        }
+
+        /* Tutorial Overlay */
+        #tutorial-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 999;
+            pointer-events: none;
+            display: none;
+        }
+        
+        .tutorial-highlight {
+            position: absolute;
+            border: 4px solid #ffd700;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.7);
+            border-radius: 8px;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .tutorial-box {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #fff;
+            padding: 15px;
+            color: #fff;
+            max-width: 250px;
+            font-size: 0.8rem;
+            pointer-events: auto;
+            z-index: 1000;
+        }
+
+        .tutorial-box h4 {
+            color: #ffd700;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .tutorial-box button {
+            margin-top: 10px;
+            padding: 6px 12px;
+            font-size: 0.7rem;
+            border: 1px solid #fff;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+        }
+        
+        .tutorial-box button:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        /* Visual Polish 3: Better Damage Numbers */
+        .damage-number-vamp {
+            color: #00ff88 !important;
+            font-weight: bold;
+            font-size: 16px !important;
+            text-shadow: 0 0 4px #000;
+            animation: floatDamage 0.8s ease-out forwards;
+        }
+        
+        @keyframes floatDamage {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            20% { transform: translate(-50%, -150%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -300%) scale(1.0); opacity: 0; }
+        }
+
+        #cinematic-bars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 80;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        .c-bar {
+            width: 100%;
+            height: 0vh;
+            background: #000;
+            transition: height 1.0s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        #cinematic-bars.active {
+            opacity: 1;
+        }
+        
+        #cinematic-bars.active .c-bar {
+            height: 15vh;
+        }
+        /* Lore Note Styles */
+        #lore-note-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Visual Polish 1: Detailed Smudges & Paper */
+        #lore-note-paper {
+            width: 90%;
+            max-width: 600px;
+            min-height: 500px;
+            background-color: #fdfbf7;
+            background-image: 
+                linear-gradient(90deg, transparent 79px, #abced4 79px, #abced4 81px, transparent 81px),
+                linear-gradient(#eee .1em, transparent .1em);
+            background-size: 100% 1.5em;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 100px rgba(0,0,0,0.5) inset;
+            padding: 40px;
+            padding-left: 100px; 
+            position: relative;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.1rem;
+            line-height: 1.5em;
+            color: #2a2a2a;
+            transform: rotate(-1deg);
+            animation: unfold 0.6s ease-out;
+        }
+
+        @keyframes unfold {
+            0% { transform: scale(0.1) rotate(20deg); opacity: 0; }
+            100% { transform: scale(1) rotate(-1deg); opacity: 1; }
+        }
+
+        #lore-note-paper::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 0;
+            bottom: 0;
+            width: 20px;
+            background: radial-gradient(circle, #222 30%, transparent 33%);
+            background-size: 100% 33.33%;
+            background-position: 0 16%;
+            opacity: 0.8;
+        }
+
+        #lore-note-paper::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 80px;
+            width: 2px;
+            background: rgba(255, 100, 100, 0.6);
+        }
+
+        .smudge {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(ellipse at center, rgba(60, 40, 20, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            filter: blur(2px);
+        }
+        
+        .fingerprint {
+            position: absolute;
+            width: 40px;
+            height: 50px;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0.08) 0%, transparent 60%);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: rotate(20deg);
+        }
+
+        #lore-dismiss-hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            color: #666;
+            text-transform: uppercase;
+            animation: pulseText 2s infinite;
+        }
+
+        @keyframes pulseText {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Lobby Styles */
+        #menu-view-lobby {
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #00ff88;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.15) inset;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #menu-view-lobby::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent 0px,
+                transparent 2px,
+                rgba(0, 255, 136, 0.05) 3px,
+                rgba(0, 255, 136, 0.05) 4px
+            );
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .lobby-header {
+            text-align: center;
+            margin-bottom: 30px;
+            z-index: 1;
+        }
+        
+        .pulse-text {
+            color: #00ff88;
+            font-size: 1.2rem;
+            animation: pulseText 1.5s infinite;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
+        }
+        
+        .lobby-status {
+            font-size: 0.65rem;
+            color: #88ffcc;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+
+        .lobby-vs-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            z-index: 1;
+        }
+
+        .player-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100px;
+        }
+
+        .slot-avatar {
+            width: 80px;
+            height: 80px;
+            background: #222;
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: #555;
+            margin: 10px 0;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        
+        .p1 .slot-avatar { border-color: #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.3); background-size: cover; background-position: center; }
+        .p2 .slot-avatar { border-color: #ff4444; box-shadow: 0 0 15px rgba(255, 68, 68, 0.3); }
+
+        .slot-label {
+            font-size: 0.6rem;
+            color: #aaa;
+            letter-spacing: 0.1em;
+        }
+
+        .slot-name {
+            font-size: 0.7rem;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+        }
+
+        .vs-divider {
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-style: italic;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .searching-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 68, 68, 0.3);
+            border-top-color: #ff4444;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-top: 5px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .lobby-controls {
+            display: flex;
+            justify-content: center;
+            z-index: 1;
+        }
+
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.160.0",
+            "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+            "cannon-es": "https://esm.sh/cannon-es@0.20.0",
+            "nipplejs": "https://esm.sh/nipplejs@0.10.1"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="game-container"></div>
+    
+    <button id="dev-unlock">.</button>
+
+    <div id="cinematic-bars">
+        <div class="c-bar"></div>
+        <div class="c-bar"></div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="compass-container">
+            <div id="compass-marker"></div>
+            <div id="compass-strip">
+                <span>N</span><span>E</span><span>S</span><span>W</span><span>N</span><span>E</span><span>S</span><span>W</span>
+            </div>
+        </div>
+
+        <div id="boss-bars-container" style="position:absolute; top:80px; left:50%; transform:translateX(-50%); width: 400px; display:flex; flex-direction:column; gap:8px; pointer-events:none; z-index: 5;"></div>
+        
+        <div id="multiplayer-hud">
+            <div id="mp-center">10:00</div>
+            
+            <div id="mp-left" class="mp-panel">
+                <div class="mp-name" id="mp-p1-name">YOU</div>
+                <div class="mp-char-name" id="mp-p1-char">Character</div>
+                <div class="mp-health-wrap">
+                    <div class="mp-health-fill" id="mp-p1-hp-bar" style="background:#00ff88;"></div>
+                    <div class="mp-health-text" id="mp-p1-hp-text">100/100</div>
+                </div>
+                <div class="mp-stats-row" id="mp-p1-stats">LVL 1 | DMG 1.0</div>
+                <div class="mp-list" id="mp-p1-items"></div>
+            </div>
+
+            <div id="mp-right" class="mp-panel">
+                <div class="mp-name" id="mp-p2-name">OPPONENT</div>
+                <div class="mp-char-name" id="mp-p2-char">...</div>
+                <div class="mp-health-wrap">
+                    <div class="mp-health-fill" id="mp-p2-hp-bar" style="background:#ff4444;"></div>
+                    <div class="mp-health-text" id="mp-p2-hp-text">?/?</div>
+                </div>
+                <div class="mp-stats-row" id="mp-p2-stats">LVL ? | DMG ?</div>
+                <div class="mp-list" id="mp-p2-items"></div>
+            </div>
+        </div>
+
+        <div id="top-hud">
+            <div id="stats-left" class="hud-panel">
+                <div class="stat-row">
+                    <div id="level-display">LVL 1</div>
+                    <div id="xp-bar-container">
+                        <div id="xp-bar"></div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div id="health-bar-container">
+                        <div id="health-bar"></div>
+                        <div id="health-text">100 / 100</div>
+                    </div>
+                </div>
+                <div id="kill-counter">Kills: 0 | Coins: 0</div>
+                
+                <div id="objectives-box">
+                    <div class="objective-header">OBJECTIVES</div>
+
+                </div>
+            </div>
+            
+            <div id="top-right">
+                <div id="timer">0:00</div>
+                <div id="loadout-box">
+                    <div class="mini-label">WEAPONS</div>
+                    <div id="weapon-list"></div>
+                    <div class="mini-label" style="margin-top:6px;">BUFFS</div>
+                    <div id="buff-list"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="minimap-container">
+            <canvas id="minimap" width="160" height="160"></canvas>
+            <div style="position:absolute; bottom:-18px; right:0; color:#fff; font-size:0.6rem; opacity:0.8;">Hold Q for Map | ESC to Pause</div>
+        </div>
+
+        <!-- Settings / Dev Button -->
+        <div style="position:fixed; bottom:22px; right:22px; z-index:40; pointer-events:auto; display:flex; gap:10px;">
+            <button id="lore-btn" style="padding:10px 14px; font-size:0.8rem; background: #222; border-color:#888;">LORE</button>
+            <!-- Secret Note button: looks like a small piece of paper -->
+            <button id="secret-note-btn" style="
+                padding:8px 10px;
+                font-size:0.7rem;
+                font-family:'Space Mono', monospace;
+                background:#fdfbf7;
+                color:#222;
+                border:2px solid #ddd;
+                box-shadow:0 2px 0 #c9c5b8, 0 0 10px rgba(0,0,0,0.4);
+                text-transform:uppercase;
+                letter-spacing:0.06em;
+                cursor:pointer;
+                display:none;
+            ">
+                NOTE
+            </button>
+            <button id="settings-btn" style="padding:10px 14px; font-size:0.8rem;">SYSTEM</button>
+        </div>
+    </div>
+
+    <!-- Lore Note DOM -->
+    <div id="lore-note-overlay">
+        <div id="lore-note-paper">
+            <div class="smudge" style="top:20%; right:10%;"></div>
+            <div class="smudge" style="bottom:15%; left:20%;"></div>
+            <p>Hello, it's me.</p>
+            <p><br>I've come to quickly inform you that a digital hell broke loose, people call it “The Void”. Ghosts have come to reign over all the digital areas.</p>
+            <p>You won't be able to stop it, all you can do is go area to area to try and outpace the onslaught. Every person, everybody, everything has turned on each other.</p>
+            <p>You need to find the guardian, the “Gatekeeper” of each land; then defeat them to reach a new one.</p>
+            <p>Whatever you do; don't overstay your visit.</p>
+            <p><br>Cheers,<br>Me.</p>
+            <div id="lore-dismiss-hint">Press any key to fold</div>
+        </div>
+    </div>
+
+    <!-- Secret Lore Note Overlay (unlocked via in-run pickup) -->
+    <div id="secret-note-overlay" style="
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,0.85);
+        z-index:2000;
+        display:none;
+        align-items:center;
+        justify-content:center;
+        backdrop-filter:blur(4px);
+    ">
+        <div id="secret-note-paper" style="
+            width:90%;
+            max-width:600px;
+            min-height:500px;
+            background-color:#fdfbf7;
+            background-image:
+                linear-gradient(90deg, transparent 79px, #abced4 79px, #abced4 81px, transparent 81px),
+                linear-gradient(#eee .1em, transparent .1em);
+            background-size:100% 1.5em;
+            box-shadow:0 10px 40px rgba(0,0,0,0.8), 0 0 100px rgba(0,0,0,0.5) inset;
+            padding:40px;
+            padding-left:100px;
+            position:relative;
+            font-family:'Courier New', Courier, monospace;
+            font-size:1.05rem;
+            line-height:1.5em;
+            color:#2a2a2a;
+            transform:rotate(-1deg);
+            animation:unfold 0.6s ease-out;
+        ">
+            <div class="smudge" style="top:18%; right:15%;"></div>
+            <div class="smudge" style="bottom:18%; left:25%;"></div>
+            <p style="margin-bottom:1em;">Hello, it's me again.</p>
+            <p style="margin-bottom:1em;">
+                I found something odd, very odd. I haven't found a way to “truly” leave yet, but I have some data you might want to start considering.
+            </p>
+            <p style="margin-bottom:1em;">
+                Ghosts are destroyed assets of the current world. They aren’t people breaking into a mortal realm, they’re pieces of this place being chewed away by a shadow that’ll eventually consume everything. We’re just buying time.
+            </p>
+            <p style="margin-bottom:1em;">
+                I don't have long here, so I'll summarize: I don't actually know what we are anymore. I was logging things on my notebook before I saw it—before I saw you.
+            </p>
+            <p style="margin-bottom:1em;">
+                You were just standing there, in an abyss. I saw everybody there. All of us, frozen in this place I shouldn't have been able to see. And then I noticed it:
+            </p>
+            <p style="margin-bottom:1em;">
+                We were never alone.
+            </p>
+            <p style="margin-bottom:1em;">
+                Something called a “Personal Computer” holds us in place and displays us for an overseer. I watched it like a window; a being staring in from the other side.
+            </p>
+            <p style="margin-bottom:1em;">
+                I don’t know if we were ever “real”, or if we’re just patterns dancing for a watcher we never noticed. With everything falling apart, I honestly don’t know what to believe anymore.
+            </p>
+            <p style="margin-top:1.2em;">
+                Cheers,<br/>
+                Me 👍
+            </p>
+            <div id="secret-note-dismiss-hint" style="
+                position:absolute;
+                bottom:20px;
+                right:20px;
+                font-family:'Space Mono', monospace;
+                font-size:0.7rem;
+                color:#666;
+                text-transform:uppercase;
+                animation:pulseText 2s infinite;
+            ">
+                Tap anywhere to fold
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#000; border:4px solid #fff; padding:20px; z-index:150; width:340px; color:#fff; box-shadow: 0 0 30px rgba(0,0,0,0.9);">
+        <h3 style="color:#ffd700; margin-bottom:15px; text-align:center;">SYSTEM SETTINGS</h3>
+        
+        <div style="margin-bottom:20px;">
+            <div style="font-size:0.7rem; color:#aaa; margin-bottom:5px;">GRAPHICS</div>
+            <div class="pixel-toggle">
+                <input type="checkbox" id="pixel-setting-check" checked>
+                <label for="pixel-setting-check">RETRO PIXEL FILTER</label>
+            </div>
+        </div>
+
+        <div style="border-top:1px dashed #444; padding-top:15px;">
+            <div style="font-size:0.7rem; color:#ff4444; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>⚠ DEV / DEBUG</span>
+            </div>
+            
+            <div style="margin-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                    <input type="checkbox" id="debug-log-check" style="accent-color:#ff0000;">
+                    <label for="debug-log-check" style="font-size:0.75rem; color:#888;">Verbose Entity Logs</label>
+                </div>
+                <div style="font-size:0.55rem; color:#666;">WARNING: Enabling may cause console spam and psychological distress.</div>
+            </div>
+
+            <div>
+                <label style="font-size:0.75rem; color:#888; display:block; margin-bottom:4px;">Map Override Code</label>
+                <div style="display:flex; gap:6px;">
+                    <input type="password" id="map-code-input" style="background:#111; border:1px solid #444; color:#fff; padding:4px; flex:1; font-family:monospace;">
+                    <button id="map-code-btn" style="padding:4px 8px; font-size:0.7rem; border:1px solid #fff;">EXEC</button>
+                </div>
+            </div>
+        </div>
+
+        <button id="settings-close" style="width:100%; margin-top:20px; border-color:#666; background:#111;">CLOSE</button>
+    </div>
+
+    <div id="big-map-overlay">
+        <div style="color:#ffd700; font-size:2rem; margin-bottom:10px;">ARENA MAP</div>
+        <canvas id="big-map-canvas"></canvas>
+    </div>
+
+    <div id="upgrade-menu">
+        <h2>LEVEL UP!</h2>
+        <div class="upgrade-options" id="upgrade-options"></div>
+    </div>
+
+    <div id="loot-toast"></div>
+
+    <div id="game-over-screen">
+        <div id="go-rays"></div>
+        <div id="go-coins"></div>
+        <div id="game-over-content">
+            <div id="run-history">
+                <h4 style="color:#888; margin-bottom:10px; text-transform:uppercase;">Run History</h4>
+                <div id="history-list"></div>
+            </div>
+
+            <div id="game-over-main">
+                <h2 id="go-title">GAME OVER</h2>
+                <div id="go-subtitle" style="font-size:0.9rem; color:#aaa; margin-bottom:20px; text-transform:uppercase;">Better luck next time</div>
+                
+                <div class="score-display">SCORE: <span id="go-score">0</span></div>
+                
+                <div class="stats-grid" id="go-stats-grid">
+                    <!-- Populated by JS -->
+                </div>
+
+                <div id="unlocks-container"></div>
+
+                <div id="mp-aftermath">
+                    <div style="font-size:0.8rem; color:#888; margin-bottom:5px; text-align:left;">MATCH CHAT</div>
+                    <div id="mp-chat-box"></div>
+                    <div id="mp-chat-input-row">
+                        <input type="text" id="mp-chat-input" placeholder="Say something nice..." maxlength="60">
+                        <button id="mp-chat-send">SEND</button>
+                    </div>
+                </div>
+
+                <div style="margin-top:20px;">
+                    <button id="restart-btn">PLAY AGAIN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="character-details-panel"></div>
+
+    <!-- Pause overlay (hidden by default) -->
+    <div id="pause-overlay" style="display:none; position:fixed; inset:0; z-index:120; pointer-events:auto; align-items:center; justify-content:center;">
+        <div style="width:88%; max-width:520px; background:rgba(0,0,0,0.92); border:4px solid #ffd700; padding:24px; text-align:center; margin:auto; box-shadow:0 8px 40px rgba(0,0,0,0.8);">
+            <h2 style="color:#ffd700; font-size:1.6rem; margin-bottom:10px; letter-spacing:0.12em;">PAUSED</h2>
+            <div style="color:#fff; margin-bottom:18px; font-size:0.95rem;">Game is paused. Take a breather or return to the main menu.</div>
+            <div style="display:flex; gap:12px; justify-content:center; margin-bottom:10px;">
+                <button id="pause-resume-btn" style="padding:12px 22px; font-size:0.95rem; border:3px solid #fff; background:#000; color:#fff; cursor:pointer;">RESUME</button>
+                <button id="pause-quit-btn" style="padding:12px 22px; font-size:0.95rem; border:3px solid #ff0044; background:linear-gradient(90deg,#ff0044,#ff6600); color:#fff; cursor:pointer;">QUIT TO MENU</button>
+            </div>
+            <div id="pause-stats" style="text-align:left; margin-top:15px; max-height:200px; overflow-y:auto; font-size:0.7rem; color:#ccc; border-top:1px solid #555; padding-top:10px; font-family: monospace;"></div>
+            <div style="color:#888; font-size:0.65rem; margin-top:10px;">Press ESC to toggle pause.</div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <canvas id="menu-bg-canvas"></canvas>
+        
+        <div id="menu-ui-left">
+            <div class="title-container">
+                <h1>UBERTHUMP</h1>
+            </div>
+
+            <!-- View 1: Intro -->
+            <div id="menu-view-intro">
+                <button id="enter-game-btn">ENTER ARENA</button>
+                <div style="margin-top:20px; display:flex; gap:10px;">
+                    <button id="menu-bestiary-btn" class="icon-btn" style="background:rgba(0,0,0,0.5);">BESTIARY</button>
+                    <button id="menu-forge-btn" class="icon-btn" style="background:rgba(0,0,0,0.5);">FORGE</button>
+                </div>
+            </div>
+
+            <!-- Custom Server Browser -->
+            <div id="menu-view-browser" style="display:none; width:100%; height:100%; flex-direction:column; padding-top:20px;">
+                <h2 style="color:#ffd700; margin-bottom:15px; font-size:1.2rem;">SERVER BROWSER</h2>
+                
+                <div id="lobby-list" style="flex:1; border:2px solid #fff; background:rgba(0,0,0,0.6); overflow-y:auto; margin-bottom:15px; padding:10px;">
+                    <div style="color:#aaa; text-align:center; margin-top:20px;">Scanning for lobbies...</div>
+                </div>
+
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button id="browser-create-btn" style="border-color:#00ff88; color:#00ff88; font-size:0.8rem; padding:10px 20px;">CREATE LOBBY</button>
+                    <button id="browser-back-btn" style="border-color:#ff4444; color:#ff4444; font-size:0.8rem; padding:10px 20px;">BACK</button>
+                </div>
+            </div>
+
+            <!-- Lobby Setup / Room -->
+            <div id="menu-view-lobby-room" style="display:none; width:100%; height:100%; flex-direction:column; padding-top:10px;">
+                <h2 id="lobby-room-title" style="color:#00ff88; margin-bottom:5px; font-size:1.2rem;">MY LOBBY</h2>
+                <div id="lobby-room-id" style="font-size:0.6rem; color:#666; margin-bottom:15px; font-family:monospace;">ID: ...</div>
+
+                <div style="display:flex; gap:20px; height:100%;">
+                    <!-- Settings Column -->
+                    <div id="lobby-settings-col" style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                        <div class="hud-panel">
+                            <div style="color:#ffd700; font-size:0.8rem; margin-bottom:8px; border-bottom:1px solid #555;">GAME SETTINGS</div>
+                            
+                            <label style="font-size:0.65rem; color:#aaa;">GAMEMODE</label>
+                            <select id="lobby-setting-mode" style="width:100%; margin-bottom:8px; background:#000; color:#fff; border:1px solid #555; font-family:inherit;">
+                                <option value="PVP">PVP (VERSUS)</option>
+                                <option value="SURVIVAL">SURVIVAL (CO-OP)</option>
+                            </select>
+
+                            <label style="font-size:0.65rem; color:#aaa;">PVP / OVERTIME START</label>
+                            <select id="lobby-setting-time" style="width:100%; margin-bottom:8px; background:#000; color:#fff; border:1px solid #555; font-family:inherit;">
+                                <option value="300">5 Minutes</option>
+                                <option value="600" selected>10 Minutes</option>
+                                <option value="900">15 Minutes</option>
+                                <option value="60">1 Minute (Quick)</option>
+                            </select>
+
+                            <div style="font-size:0.65rem; color:#aaa; margin-top:4px;">MULTIPLIERS</div>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
+                                <div>
+                                    <span style="font-size:0.6rem;">Loot</span>
+                                    <input type="number" id="lobby-setting-loot" value="1.0" step="0.5" min="0.5" max="5.0" style="width:40px; background:#000; color:#fff; border:1px solid #555;">
+                                </div>
+                                <div>
+                                    <span style="font-size:0.6rem;">Spawns</span>
+                                    <input type="number" id="lobby-setting-spawn" value="1.0" step="0.5" min="0.5" max="5.0" style="width:40px; background:#000; color:#fff; border:1px solid #555;">
+                                </div>
+                            </div>
+
+                            <div class="pixel-toggle" style="margin-top:10px; background:transparent; padding:0;">
+                                <input type="checkbox" id="lobby-setting-infinite">
+                                <label for="lobby-setting-infinite" style="font-size:0.6rem;">INFINITE WEAPON SLOTS</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Players Column -->
+                    <div style="flex:1; display:flex; flex-direction:column;">
+                        <div class="hud-panel" style="flex:1;">
+                            <div style="color:#00ff88; font-size:0.8rem; margin-bottom:8px; border-bottom:1px solid #555;">PLAYERS <span id="lobby-player-count">(1/4)</span></div>
+                            <div id="lobby-player-list" style="font-size:0.75rem; display:flex; flex-direction:column; gap:6px;">
+                                <!-- Players injected here -->
+                            </div>
+                        </div>
+                        
+                        <button id="lobby-start-btn" style="margin-top:10px; background:#00ff88; color:#000; font-size:0.9rem; border:none;">START GAME</button>
+                        <button id="lobby-leave-btn" style="margin-top:6px; background:#330000; color:#ff4444; font-size:0.7rem; border:1px solid #ff4444;">LEAVE LOBBY</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View 2: Selection -->
+            <div id="menu-view-select" style="display: none;">
+                <div id="selection-header" style="display:none; color:#ffd700; margin-bottom:10px; font-weight:bold;">SELECT YOUR FIGHTER</div>
+                <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+                    <div class="character-select" id="character-select" aria-live="polite">
+                        <!-- Cards injected by JS -->
+                         <div class="character-card selected" data-char="MMOOVT">
+                            <h3>Mr. Mc. Oofy Otterson Vangough III</h3>
+                            <span>Tanky Knight • Melee</span>
+                            <p>Slow but tough, wields a long sword you manually slash with.</p>
+                        </div>
+                        <div class="character-card" data-char="FOX">
+                            <h3>Fox</h3>
+                            <span>Fast Caster • Fireball</span>
+                            <p>Very quick, fragile, starts with rapid-fire explosive fireballs.</p>
+                        </div>
+                        <div class="character-card" data-char="CALCIUM">
+                            <h3>Calcium</h3>
+                            <span>Skate Skeleton • Bones</span>
+                            <p>Speeds up while moving, throws ricocheting bones that bounce between foes.</p>
+                            <p class="unlock-note">Unlock: Kill 200 skeletons and get a MM Oofy miniboss kill.</p>
+                        </div>
+                        <div class="character-card" data-char="GIGACHAD">
+                            <h3>GigaChad</h3>
+                            <span>Mega Tank • Aura</span>
+                            <p>Extremely tanky, flexes to ignore big hits and melts enemies in a damage aura.</p>
+                            <p class="unlock-note">Unlock: Upgrade any Aura weapon to Level 3 AND unlock Monke.</p>
+                        </div>
+                        <div class="character-card" data-char="BLITZ">
+                            <h3>Blitz</h3>
+                            <span>Storm Bot • Lightning</span>
+                            <p>Balanced brawler with built-in lightning zaps and boosted attack speed.</p>
+                            <p class="unlock-note">Unlock: Defeat the main boss once.</p>
+                        </div>
+                        <div class="character-card" data-char="MONKE">
+                            <h3>Monke</h3>
+                            <span>Primal • Bananerang</span>
+                            <p>Fast, throws returning bananas.</p>
+                            <p class="unlock-note">Unlock: Upgrade Bananerang to Lvl 3 AND find the hidden crate in the world.</p>
+                        </div>
+                        <div class="character-card" data-char="SIR_CHAD">
+                            <h3>Sir Chadsirwellsirchadsirchadwellwell</h3>
+                            <span>God Tank • Giga Sword</span>
+                            <p>Massive HP, intimidating black knight. Married to GigaChad.</p>
+                            <p class="unlock-note">Unlock: Unlock GigaChad AND Upgrade Spinning Blade to Lvl 5.</p>
+                        </div>
+                    </div>
+
+                    <!-- Compact locked list (only shown when there are locked characters) -->
+                    <div id="locked-list" class="hud-panel" style="margin-top:8px; display:none; max-width:420px;">
+                        <div style="font-size:0.75rem; color:#ffd700; text-transform:uppercase; margin-bottom:6px;">Locked Characters</div>
+                        <div id="locked-list-items" style="display:flex; flex-direction:column; gap:6px; font-size:0.75rem; color:#fff;"></div>
+                    </div>
+                </div>
+
+                <div class="menu-controls">
+                    <button id="start-btn">▶ PLAY</button>
+
+                    <!-- Gamemode select: Classic / Awakening / Multiplayer -->
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-left:8px;">
+                        <label for="mode-select" style="font-size:0.65rem; color:#fff; letter-spacing:0.08em;">GAMEMODE</label>
+                        <select id="mode-select" style="padding:6px 8px; background:#000; color:#fff; border:2px solid #fff; font-family:'Press Start 2P', monospace; font-size:0.6rem; text-transform:uppercase;">
+                            <option value="ARCADE">CLASSIC</option>
+                            <option value="AWAKENING">AWAKENING THE DEAD</option>
+                            <option value="MULTI">MULTIPLAYER (VS)</option>
+                        </select>
+                        <div id="mode-helper-text" style="font-size:0.6rem; color:#ff6666; max-width:260px; display:none;"></div>
+                    </div>
+
+                    <div class="pixel-toggle" id="theme-toggle-container" style="margin-left: 10px; display:none;">
+                        <input type="checkbox" id="theme-toggle">
+                        <label for="theme-toggle">USE CHARACTER THEME</label>
+                    </div>
+                </div>
+                <div id="awakening-msg" style="display:none; color:#ff4444; font-size:0.8rem; margin-top:10px; max-width:300px;">
+                    AWAKENING MODE ACTIVE: Starts as Knight. Infinite Progression. Evolution System. Permanent Pixel Mode.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="unlock-screen">
+        <div id="unlock-particles"></div>
+        <div id="unlock-content">
+            <h1 id="unlock-title">CHARACTER UNLOCKED!</h1>
+            <div id="unlock-char-name">NAME HERE</div>
+            <div id="unlock-visual"></div>
+            <button id="unlock-continue-btn">CONTINUE</button>
+        </div>
+    </div>
+
+    <div id="loading-overlay">
+        <div id="loading-box">
+            <div style="font-size:1.4rem; letter-spacing:0.2em;">LOADING</div>
+            <span>Generating chaos...</span>
+        </div>
+    </div>
+
+    <div id="tutorial-overlay"></div>
+
+    <!-- Device Check Overlay -->
+    <div id="device-check-overlay" style="display:none;">
+        <div id="device-check-box">
+            <div id="dc-header">
+                <h2>SYSTEM CHECK</h2>
+                <div id="dc-subtitle">Analyzing hardware capabilities...</div>
+            </div>
+            
+            <div id="dc-content">
+                <div class="dc-row">
+                    <span>CPU Threads</span>
+                    <span id="dc-cpu">...</span>
+                </div>
+                <div class="dc-row">
+                    <span>Memory (RAM)</span>
+                    <span id="dc-ram">...</span>
+                </div>
+                <div class="dc-row">
+                    <span>GPU Renderer</span>
+                    <span id="dc-gpu">...</span>
+                </div>
+                <div class="dc-row">
+                    <span>Platform</span>
+                    <span id="dc-os">...</span>
+                </div>
+            </div>
+
+            <div id="dc-verdict-container">
+                <div id="dc-verdict-title">PERFORMANCE RATING</div>
+                <div id="dc-verdict-badge">ANALYZING...</div>
+                <div id="dc-verdict-desc">Please wait while we check your specs.</div>
+            </div>
+
+            <div id="dc-actions">
+                <button id="dc-continue-btn">CONTINUE ANYWAY</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Device Check Styles */
+        #device-check-overlay {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 10000;
+            display: none; /* Flex when active */
+            align-items: center;
+            justify-content: center;
+            font-family: 'Space Mono', monospace;
+        }
+        #device-check-box {
+            width: 90%;
+            max-width: 480px;
+            background: #111;
+            border: 2px solid #444;
+            padding: 30px;
+            color: #fff;
+            box-shadow: 0 0 60px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        #dc-header h2 { margin: 0; color: #fff; font-size: 1.5rem; letter-spacing: 0.1em; font-family: 'Press Start 2P', monospace; }
+        #dc-subtitle { color: #888; font-size: 0.8rem; margin-top: 8px; text-transform: uppercase; }
+        
+        .dc-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #222;
+            padding: 10px 0;
+            font-size: 0.8rem;
+        }
+        .dc-row span:first-child { color: #888; font-size: 0.75rem; text-transform: uppercase; }
+        .dc-row span:last-child { color: #fff; font-weight: bold; text-align: right; max-width: 65%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; }
+        
+        #dc-verdict-container {
+            background: #1a1a1a;
+            padding: 20px;
+            border: 1px solid #333;
+            text-align: center;
+            margin-top: 10px;
+        }
+        #dc-verdict-title { font-size: 0.65rem; color: #555; margin-bottom: 10px; letter-spacing: 0.15em; font-weight: bold; }
+        #dc-verdict-badge {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #dc-verdict-desc { font-size: 0.7rem; color: #aaa; line-height: 1.5; }
+        
+        #dc-actions { text-align: right; margin-top: 10px; display: flex; justify-content: flex-end; }
+        #dc-continue-btn {
+            background: #fff; 
+            color: #000; 
+            border: none; 
+            padding: 14px 28px;
+            font-weight: bold; 
+            cursor: pointer; 
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        #dc-continue-btn:hover { background: #ffd700; transform: scale(1.05); }
+
+        #unlock-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 100;
+            display: none; /* Flex when active */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            color: #fff;
+            pointer-events: auto;
+        }
+        #unlock-screen.active {
+            display: flex;
+        }
+        #unlock-particles {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .u-particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #fff;
+            animation: floatUp linear forwards;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+        }
+        #unlock-content {
+            z-index: 2;
+            text-align: center;
+            padding: 40px;
+            border: 4px solid #fff;
+            background: rgba(0,0,0,0.8);
+            box-shadow: 0 0 50px rgba(255,255,255,0.2);
+            max-width: 600px;
+            width: 90%;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        #unlock-title {
+            color: #ffd700;
+            font-size: 2rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        }
+        #unlock-char-name {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            color: #fff;
+            letter-spacing: 0.1em;
+        }
+        #unlock-continue-btn {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Press Start 2P', monospace;
+        }
+        #unlock-continue-btn:hover {
+            background: #ffd700;
+            transform: scale(1.1);
+        }
+    </style>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
