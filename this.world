@@ -1,0 +1,4 @@
+// Clear transitioning flag as the tier transition finished successfully
+    try {
+        this._tierTransitioning = false;
+    } catch (e) {}
