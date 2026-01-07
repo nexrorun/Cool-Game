@@ -1,0 +1,10 @@
+.pixel-toggle input {
+        width: 18px;
+        height: 18px;
+    }
+
+    .pixel-toggle input {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
