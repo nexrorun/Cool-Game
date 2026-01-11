@@ -120,4 +120,4 @@ export class XPOrb {
     destroy(scene) {
         scene.remove(this.mesh);
     }
-}game/utils.js
+}
