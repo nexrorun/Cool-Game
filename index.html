@@ -918,6 +918,17 @@
             display: flex;
         }
 
+        #overtime-vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 90;
+            box-shadow: inset 0 0 100px rgba(255, 0, 0, 0);
+            transition: box-shadow 0.1s;
+            mix-blend-mode: overlay;
+            display: none;
+        }
+
         /* God rays background */
         #go-rays {
             position: absolute;
@@ -1557,6 +1568,8 @@
     
     <button id="dev-unlock">.</button>
 
+    <div id="overtime-vignette"></div>
+
     <div id="cinematic-bars">
         <div class="c-bar"></div>
         <div class="c-bar"></div>
@@ -1984,6 +1997,11 @@
                             <span>God Tank • Giga Sword</span>
                             <p>Massive HP, intimidating black knight. Married to GigaChad.</p>
                             <p class="unlock-note">Unlock: Unlock GigaChad AND Upgrade Spinning Blade to Lvl 5.</p>
+                        </div>
+                        <div class="character-card" data-char="BOBERTO">
+                            <h3>Boberto</h3>
+                            <span>Summoner • Ghost Sheet</span>
+                            <p>Bob's legal (abandoned) son. Can't attack directly. Summons ghost friends to fight.</p>
                         </div>
                     </div>
 
