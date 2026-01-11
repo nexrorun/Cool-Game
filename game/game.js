@@ -26,7 +26,8 @@ const WEAPONS = {
     ICE_AURA:    { name: "Ice Aura", desc: "Chills and slows enemies close to you", type: 'weapon' },
     MINI_TURRET: { name: "Mini Turret", desc: "Little bot that auto-shoots nearby foes", type: 'weapon' },
     NOVA_BLAST:  { name: "Nova Blast", desc: "Occasional radial explosion from your position", type: 'weapon' },
-    BANANERANG:  { name: "Bananerang", desc: "Thrown banana that returns to you", type: 'weapon' }
+    BANANERANG:  { name: "Bananerang", desc: "Thrown banana that returns to you", type: 'weapon' },
+    SUMMON_GHOST: { name: "Spooky Bois", desc: "Summons friendly ghosts to attack enemies", type: 'weapon' }
 };
 
 const RUNES = {
@@ -122,6 +123,15 @@ const CHARACTERS = {
         startingWeapons: [], // Uses manual sword
         meleeOnly: true,
         description: 'God Tank. Massive health and heavy damage.'
+    },
+    BOBERTO: {
+        name: 'Boberto',
+        maxHealth: 90,
+        moveSpeed: 1.0,
+        baseDamage: 1.0,
+        fireRate: 1.0,
+        startingWeapons: ['SUMMON_GHOST'],
+        description: 'Summons friendly ghosts. Cannot attack directly.'
     }
 };
 
@@ -457,6 +467,10 @@ export class Game {
 
         // Audio
         this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        this.analyser = this.audioCtx.createAnalyser();
+        this.analyser.fftSize = 256;
+        this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
+        
         this.sounds = {};
         this.loadSound('/bonk.mp3', 'bonk');
         this.loadSound('/boom.mp3', 'boom');
@@ -1340,7 +1354,8 @@ export class Game {
              // If normal gameplay, when it ends, play next random
              if (!isOvertime && !this.useCharacterTheme) {
                  source.onended = () => {
-                     if (this.isPlaying && !this.isOvertimeMusic) {
+                     // Ensure we don't start normal BGM if overtime has started or game ended
+                     if (this.isPlaying && !this.isOvertimeMusic && !this.overtimeActive) {
                          this.startBGM();
                      }
                  };
@@ -1349,7 +1364,10 @@ export class Game {
              const gain = this.audioCtx.createGain();
              gain.gain.value = 0.35;
              source.connect(gain);
-             gain.connect(this.audioCtx.destination);
+             // Connect through analyser
+             gain.connect(this.analyser);
+             this.analyser.connect(this.audioCtx.destination);
+             
              source.start(0);
              
              this.currentBgmNode = source;
@@ -1694,16 +1712,21 @@ export class Game {
             vertexShader: `
                 uniform vec2 uvScale;
                 varying vec2 vUv;
+                varying float vFogDepth;
                 void main() {
                     vUv = uvScale * uv;
                     vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
                     gl_Position = projectionMatrix * mvPosition;
+                    vFogDepth = -mvPosition.z;
                 }
             `,
             fragmentShader: `
                 uniform float time;
                 uniform sampler2D texture1;
+                uniform vec3 fogColor;
+                uniform float fogDensity;
                 varying vec2 vUv;
+                varying float vFogDepth;
                 
                 void main() {
                     vec2 p = -1.0 + 2.0 * vUv;
@@ -1725,6 +1748,10 @@ export class Game {
                     
                     // Pulsing emissive glow
                     col *= 1.0 + 0.3 * sin(time);
+
+                    // Fog
+                    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+                    col = mix( col, fogColor, fogFactor );
                     
                     gl_FragColor = vec4(col, 1.0);
                 }
@@ -3398,9 +3425,41 @@ export class Game {
             swordGroup.rotation.x = -0.3;
             armR.add(swordGroup);
             this.playerSword = swordGroup;
-            
             this.playerLimbs = { armL, armR, legL, legR };
             
+        } else if (type === 'BOBERTO') {
+            verticalVisualOffset = 0.4;
+            // Boberto - Sheet Ghost with visible legs
+            
+            // Legs (Jeans)
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x223355, flatShading: true });
+            legL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.8, 0.25), legMat);
+            legL.position.set(-0.2, 0.4, 0);
+            group.add(legL);
+            legR = legL.clone();
+            legR.position.x = 0.2;
+            group.add(legR);
+            
+            // Sheet Body
+            const sheetMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.9 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 1.4, 16, 1, true), sheetMat);
+            body.position.y = 1.1;
+            group.add(body);
+            
+            // Head (rounded top)
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), sheetMat);
+            head.position.y = 1.8;
+            group.add(head);
+            
+            // Sunglasses
+            const glassMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1 });
+            const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.1), glassMat);
+            glasses.position.set(0, 1.85, 0.45);
+            group.add(glasses);
+            
+            // No arms animation, just a sheet
+            this.playerLimbs = { legL, legR, armL: null, armR: null };
+
         } else {
             verticalVisualOffset = 0.25;
             // Default MMOOVT knight with fixed arm placement
@@ -3523,6 +3582,8 @@ export class Game {
             allowSleep: false
         });
         this.playerBody.addShape(shape);
+        // Double-jump state: true when available (reset on ground), consumed on mid-air double jump
+        this.doubleJumpAvailable = true;
         // NOTE: Do NOT add playerBody to the physics world – we move and ground it manually.
 
         // Remember a safe spawn point so we can teleport the player back if they fall into the void
@@ -3615,6 +3676,11 @@ export class Game {
                 this.knightSlash();
             } else if (this.characterKey === 'CALCIUM') {
                 this.throwBone();
+            } else if (this.characterKey === 'BOBERTO') {
+                // Manual ghost spawn check? Or just passive.
+                // Prompt says "He actually cant directly attack... hes a GHOST".
+                // So clicking does nothing or maybe a little poof effect.
+                this.particleSystem.emit(this.playerMesh.position.clone().add(new THREE.Vector3(0,1,0)), 0xffffff, 5);
             }
         });
     }
@@ -3919,6 +3985,8 @@ export class Game {
         const portalModel = this.createVoidPortalModel(false);
         // Raise it up a bit
         portalModel.position.y = terrainY + 3.0;
+        // HIDE entirely until boss death as requested
+        portalModel.visible = false;
         group.add(portalModel);
 
         // Stone Base
@@ -5491,6 +5559,7 @@ export class Game {
             case 'BLITZ': return 'Storm Lightning';
             case 'MONKE': return 'Bananerang';
             case 'SIR_CHAD': return 'Giga Slash';
+            case 'BOBERTO': return 'Ghost Summon';
             default: return 'Basic Attack';
         }
     }
@@ -5706,8 +5775,8 @@ export class Game {
         }
         
         // Quiet & slow music
-        if (this.currentBgmGain) this.currentBgmGain.gain.value = 0.15; // quieter
-        if (this.currentBgmNode) this.currentBgmNode.playbackRate.value = 0.5; // slow down
+        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(0.15, this.audioCtx.currentTime, 0.1);
+        if (this.currentBgmNode) this.currentBgmNode.playbackRate.setValueAtTime(0.5, this.audioCtx.currentTime);
         this.playSynth('levelup');
 
         this.upgradeMenu.classList.add('active');
@@ -5838,8 +5907,8 @@ export class Game {
 
     selectUpgrade(key, type) {
         // Restore music
-        if(this.currentBgmGain) this.currentBgmGain.gain.value = 0.35;
-        if(this.currentBgmNode) this.currentBgmNode.playbackRate.value = 1.0;
+        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(0.35, this.audioCtx.currentTime, 0.1);
+        if (this.currentBgmNode) this.currentBgmNode.playbackRate.setValueAtTime(1.0, this.audioCtx.currentTime);
         this.playSynth('ui');
 
         if (type === 'evolution') {
@@ -6620,6 +6689,9 @@ export class Game {
     updatePlayerAnimation(dt, isMoving) {
         // Calcium rides the board – no walk cycle animation
         if (this.characterKey === 'CALCIUM') return;
+        
+        // Boberto is just a sheet, but has legs. Animate legs only.
+        // Handled by generic limb check below.
 
         if (!this.playerLimbs) return;
 
@@ -6981,10 +7053,36 @@ export class Game {
             this.particleSystem.emit(dustPos, 0x8b5a2b, 3);
         }
 
-        // Jump
-        if (this.keys.space && this.canJump) {
-            this.playerBody.velocity.y = 18;
-            this.canJump = false;
+        // Jump handling: apply an upward impulse; support one mid-air double jump.
+        // canJump is set based on nearGround above; space is our jump key.
+        if (this.keys.space) {
+            // If grounded -> normal jump and allow a mid-air double jump
+            if (this.canJump) {
+                let jumpStrength = 16;
+                if (this.characterKey === 'GIGACHAD' || this.characterKey === 'SIR_CHAD') {
+                    jumpStrength = 14;
+                }
+                this.playerBody.velocity.y = jumpStrength;
+                this.canJump = false;
+                // After first jump, allow one double jump while airborne
+                this.doubleJumpAvailable = true;
+            }
+            // If not grounded and double jump available -> perform double jump
+            else if (!this.canJump && this.doubleJumpAvailable) {
+                let djStrength = 14;
+                // Slightly alter double-jump power per character
+                if (this.characterKey === 'CALCIUM') djStrength = 16; // Calcium gets a snappier double
+                if (this.characterKey === 'MONKE') djStrength = 18; // Monke gets a higher second jump
+                if (this.characterKey === 'GIGACHAD' || this.characterKey === 'SIR_CHAD') djStrength = 13;
+                this.playerBody.velocity.y = djStrength;
+                this.doubleJumpAvailable = false; // consume double jump
+                // Small visual/particle feedback for double jump
+                if (this.particleSystem && this.playerMesh) {
+                    const pos = this.playerMesh.position.clone();
+                    pos.y += 0.5;
+                    this.particleSystem.emit(pos, 0xffffff, 8);
+                }
+            }
         }
 
         // Sync visual with kinematic "body"
@@ -7072,6 +7170,60 @@ export class Game {
             
             // Init hit tracking
             if (!proj.hitIds) proj.hitIds = [];
+
+            // Friendly Ghost Logic (Boberto)
+            if (proj.isFriendlyGhost) {
+                // Seek nearest enemy
+                let nearest = null;
+                let minDist = Infinity;
+                for (let enemy of this.enemies) {
+                    const d = enemy.mesh.position.distanceTo(proj.mesh.position);
+                    if (d < minDist) { minDist = d; nearest = enemy; }
+                }
+                
+                if (nearest) {
+                    const dir = new THREE.Vector3().subVectors(nearest.mesh.position, proj.mesh.position).normalize();
+                    // Move towards enemy (ignoring terrain collision for ghosts)
+                    proj.velocity.addScaledVector(dir, 60 * dt); // High acceleration
+                    proj.velocity.multiplyScalar(0.92); // Damping
+                    
+                    // Face target
+                    const angle = Math.atan2(dir.x, dir.z);
+                    proj.mesh.rotation.y = angle;
+                } else {
+                    // Wander if no enemies
+                    proj.velocity.multiplyScalar(0.95);
+                    proj.mesh.rotation.y += dt;
+                }
+                
+                proj.mesh.position.addScaledVector(proj.velocity, dt);
+                
+                // Bob particles
+                if (Math.random() > 0.8) {
+                    this.particleSystem.emit(proj.mesh.position, proj.isDeadly ? 0xff0000 : (proj.isMiniBob ? 0x000000 : 0x00ffcc), 1);
+                }
+                
+                // Collision Logic
+                for (let enemy of this.enemies) {
+                    const dist = proj.mesh.position.distanceTo(enemy.mesh.position);
+                    // Hit radius
+                    if (dist < (enemy.size + 1.0)) {
+                        // Dealing damage on contact ticks
+                        proj.attackTimer = (proj.attackTimer || 0) + dt;
+                        if (proj.attackTimer >= 0.2) { // Attack rate
+                            proj.attackTimer = 0;
+                            this.damageEnemy(enemy, proj.damage);
+                            this.particleSystem.emit(enemy.mesh.position, 0xffffff, 3);
+                        }
+                    }
+                }
+                
+                if (proj.life <= 0) {
+                    this.scene.remove(proj.mesh);
+                    this.projectiles.splice(i, 1);
+                }
+                continue;
+            }
 
             // Slutty Missiles: arc phase then aggressive homing
             if (proj.isMissile) {
@@ -7767,6 +7919,7 @@ export class Game {
                 // Activate the portal visuals
                 if (this.bossPortal && this.bossPortal.visuals) {
                     const v = this.bossPortal.visuals;
+                    v.visible = true; // REVEAL portal on death
                     // Find parts by user data
                     v.children.forEach(c => {
                         if (c.userData.isRim) {
@@ -8094,6 +8247,19 @@ export class Game {
                 
                 this.playSynth('unlock', 0.8, 0.4);
                 this.particleSystem.emit(chest.position, 0xFFD700, 20);
+                
+                // Temporary audio dip for chest opening
+                if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(0.15, this.audioCtx.currentTime, 0.1);
+                if (this.currentBgmNode) this.currentBgmNode.playbackRate.setValueAtTime(0.5, this.audioCtx.currentTime);
+                
+                setTimeout(() => {
+                    // Only restore if we haven't entered a pause menu (like level up) in the meantime
+                    if (!this.isPaused) {
+                        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(0.35, this.audioCtx.currentTime, 0.5);
+                        if (this.currentBgmNode) this.currentBgmNode.playbackRate.setValueAtTime(1.0, this.audioCtx.currentTime);
+                    }
+                }, 1200);
+
                 this.updateLoadoutUI();
             } else {
                 chest._notified = false;
@@ -8694,6 +8860,93 @@ export class Game {
             }
         }
 
+        // Boberto's Spooky Bois (Ghost Summon)
+        if (this.weapons.includes('SUMMON_GHOST')) {
+            this.weaponTimers.SUMMON_GHOST = (this.weaponTimers.SUMMON_GHOST || 0) + dt;
+            const level = this.weaponLevels.SUMMON_GHOST || 1;
+            // Upgrades increase spawn rate slowly
+            // Base cooldown ~3s, reduces slightly
+            let cooldown = Math.max(0.5, 3.5 - level * 0.15); 
+            cooldown /= fireRateMult;
+            
+            if (this.weaponTimers.SUMMON_GHOST >= cooldown) {
+                this.weaponTimers.SUMMON_GHOST = 0;
+                
+                // Determine Ghost Type
+                let type = 'normal';
+                let life = 6.0;
+                let hp = 10;
+                let scale = 1.0;
+                let color = 0xccffcc; // Default friendly ghost color
+                
+                // 2% chance for Deadly at Lvl 5+
+                if (level >= 5 && Math.random() < 0.02) {
+                    type = 'deadly';
+                    life = 10.0;
+                    scale = 1.3;
+                    color = 0xff0000;
+                }
+                
+                // 1% chance for Mini Bob at Lvl 12+
+                if (level >= 12 && Math.random() < 0.01) {
+                    type = 'bob';
+                    life = 45.0;
+                    scale = 2.0;
+                    color = 0x222222;
+                }
+                
+                // Spawn position: "around you... a little farther"
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 10 + Math.random() * 5;
+                const sx = playerPos.x + Math.cos(angle) * dist;
+                const sz = playerPos.z + Math.sin(angle) * dist;
+                const sy = this.getTerrainHeight(sx, sz) + 2.0;
+                
+                // Visuals
+                const group = new THREE.Group();
+                
+                if (type === 'bob') {
+                    // Mini Bob visual (Cube head)
+                    const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+                    group.add(head);
+                    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.1), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                    eye.position.set(0, 0.1, 0.5);
+                    group.add(eye);
+                } else {
+                    // Ghost visual (Sheet)
+                    const mat = new THREE.MeshStandardMaterial({ color: color, transparent: true, opacity: 0.8 });
+                    const core = new THREE.Mesh(new THREE.CapsuleGeometry(0.4 * scale, 1.0 * scale, 4, 8), mat);
+                    group.add(core);
+                    // Eyes
+                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1 * scale), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                    eye.position.set(-0.15*scale, 0.2*scale, 0.35*scale);
+                    group.add(eye);
+                    const eye2 = eye.clone();
+                    eye2.position.x = 0.15*scale;
+                    group.add(eye2);
+                }
+                
+                group.position.set(sx, sy, sz);
+                this.scene.add(group);
+                
+                const dmgBase = type === 'bob' ? 50 : (type === 'deadly' ? 20 : 8);
+                const damage = dmgBase * level * (this.stats.damage || 1);
+                
+                this.projectiles.push({
+                    mesh: group,
+                    velocity: new THREE.Vector3(0,0,0),
+                    damage: damage,
+                    life: life,
+                    isFriendlyGhost: true,
+                    isDeadly: type === 'deadly',
+                    isMiniBob: type === 'bob',
+                    attackTimer: 0
+                });
+                
+                this.particleSystem.emit(group.position, color, 10);
+            }
+        }
+
         // New weapon: Mini Turret – orbiting bots that auto-shoot
         if (this.weapons.includes('MINI_TURRET')) {
             const level = this.weaponLevels.MINI_TURRET || 1;
@@ -9161,7 +9414,7 @@ export class Game {
             mesh: bone,
             velocity: dir.multiplyScalar(30),
             damage: 1.1 * (this.stats.damage || 1),
-            life: 4,
+            life: 0.8, // Shortened life per request
             isBone: true,
             bouncesLeft: 2
         });
@@ -9243,6 +9496,68 @@ export class Game {
                 this.xpOrbs.splice(i, 1);
                 this.playSound('bonk', 2.0, 0.15);
             }
+        }
+    }
+
+    updateAudioDynamics() {
+        if (!this.currentBgmNode || !this.isPlaying) return;
+
+        // 1. Health-based Speed (Pitch)
+        // If health drops below 40%, slow down music linearly down to 0.6x at 0% HP
+        const hpRatio = Math.max(0, this.playerHealth / this.maxHealth);
+        let targetRate = 1.0;
+        if (hpRatio < 0.4) {
+            // Map 0.4 -> 1.0, 0.0 -> 0.6
+            const t = hpRatio / 0.4; // 0 to 1
+            targetRate = 0.6 + 0.4 * t;
+        }
+        
+        // Smoothly adjust playback rate
+        if (this.currentBgmNode.playbackRate) {
+            const current = this.currentBgmNode.playbackRate.value;
+            this.currentBgmNode.playbackRate.value += (targetRate - current) * 0.05;
+        }
+
+        // 2. Intensity-based Volume
+        // If many enemies are close, increase volume slightly
+        let intensity = 0;
+        const pPos = this.playerBody.position;
+        // Count enemies within 15 units
+        let closeCount = 0;
+        for (let e of this.enemies) {
+            if (pPos.distanceTo(e.body.position) < 15) closeCount++;
+        }
+        
+        // Base volume is 0.35. Max boost +0.15
+        const baseVol = 0.35;
+        const boost = Math.min(0.15, closeCount * 0.015);
+        const targetVol = baseVol + boost;
+        
+        if (this.currentBgmGain) {
+            const currentVol = this.currentBgmGain.gain.value;
+            this.currentBgmGain.gain.value += (targetVol - currentVol) * 0.05;
+        }
+
+        // 3. Overtime Visuals (Red Vignette Pulse)
+        if (this.overtimeActive) {
+            const vignette = document.getElementById('overtime-vignette');
+            if (vignette) {
+                vignette.style.display = 'block';
+                this.analyser.getByteFrequencyData(this.audioDataArray);
+                // Get bass energy (low bins)
+                let bass = 0;
+                for(let i=0; i<10; i++) bass += this.audioDataArray[i];
+                bass /= 10; // 0-255 average
+                
+                // Map to opacity/box-shadow spread
+                // Ensure a base visibility so it's always red in overtime, pulsing adds more
+                const spread = 80 + (bass / 255) * 200;
+                const opacity = 0.4 + (bass / 255) * 0.6;
+                vignette.style.boxShadow = `inset 0 0 ${spread}px rgba(255, 0, 0, ${opacity})`;
+            }
+        } else {
+            const vignette = document.getElementById('overtime-vignette');
+            if (vignette) vignette.style.display = 'none';
         }
     }
 
@@ -9785,6 +10100,7 @@ export class Game {
             }
             this.particleSystem.update(dt);
             this.updateDamageNumbers(dt);
+            this.updateAudioDynamics();
             this.updateCamera();
 
             // Tree animation (sway)
@@ -9799,7 +10115,8 @@ export class Game {
             // Character auras
             if (this.characterKey === 'GIGACHAD' && this.characterConfig) {
                 const radius = (this.characterConfig.auraRadius || 3) * (this.stats.areaMult || 1);
-                const dps = (this.characterConfig.auraDps || 10) * (this.stats.damage || 1);
+                // Buffed GigaChad Aura: 2.5x base damage multiplier to make it actually hurt
+                const dps = (this.characterConfig.auraDps || 10) * (this.stats.damage || 1) * 2.5;
                 const origin = new THREE.Vector3().copy(this.playerBody.position);
                 for (let enemy of this.enemies) {
                     const dist = origin.distanceTo(enemy.mesh.position);
