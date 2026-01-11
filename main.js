@@ -290,7 +290,8 @@ window.addEventListener('DOMContentLoaded', () => {
             hostId: room.clientId,
             isHost: true,
             players: [room.clientId],
-            settings: { mode: 'PVP', timeLimit: 600 }
+            settings: { mode: 'PVP', timeLimit: 600 },
+            status: 'waiting' // Init status
         };
         
         enterLobbyRoom();
@@ -400,10 +401,10 @@ window.addEventListener('DOMContentLoaded', () => {
                 // If host put lobby into 'selecting' and there is at least one other player, open selection UI for host
                 const myPres = room.presence[room.clientId];
                 if (myPres && myPres.hosting) {
-                    if (myPres.hosting.status === 'selecting' && members.length > 1 && !window.mpSelectionActive) {
-                        // Choose the first opponent (simple 1v1 flow). For survival, players will ready individually.
-                        const opponentId = members.find(id => id !== room.clientId);
-                        if (opponentId) startMPSelection(opponentId);
+                    // Host enters selection even if alone (for testing) or with players
+                    if (myPres.hosting.status === 'selecting' && !window.mpSelectionActive) {
+                        const opponentId = members.find(id => id !== room.clientId) || null;
+                        startMPSelection(opponentId);
                     } else if (myPres.hosting.status === 'starting') {
                         // Shared start state: begin synced countdown & launch for host
                         beginSyncedStart(myPres.hosting.settings || currentLobby.settings || {});
@@ -444,6 +445,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 
                 // Check start signal (only host will set to 'starting' once both ready and selection complete)
                 if (p.hosting.status === 'starting') {
+                    // Hide character select overlay just in case
+                    if (viewSelect) viewSelect.style.display = 'none';
                     // Begin shared countdown & start for guests
                     beginSyncedStart(s);
                 }
@@ -472,7 +475,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 playerCount: currentLobby.players.length,
                 players: currentLobby.players,
                 settings: s,
-                status: 'waiting'
+                status: currentLobby.status || 'waiting' // Use stored status
             },
             lobbyId: currentLobby.id
         });
@@ -521,8 +524,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
         // Determine the authoritative mode from the lobby settings UI (PVP or SURVIVAL)
         const uiMode = (currentLobby.settings && currentLobby.settings.mode) ? currentLobby.settings.mode : setMode.value;
-        // Explicit: if PVP selected, require 2 players; Survival requires 4
-        const minPlayers = (uiMode === 'SURVIVAL') ? 4 : 2;
+        
+        // Relaxed requirement: Warn instead of block if count is low, default min is 2
+        const minPlayers = 2;
 
         // Compute current members directly from presence to avoid stale currentLobby.players
         let members = [room.clientId];
@@ -536,9 +540,8 @@ window.addEventListener('DOMContentLoaded', () => {
         const currentCount = members.length;
 
         if (currentCount < minPlayers) {
-            // Friendly feedback to host
-            alert(`Not enough players to start. ${uiMode === 'SURVIVAL' ? 'Survival' : 'PVP'} requires at least ${minPlayers} players (currently ${currentCount}).`);
-            return;
+            const proceed = confirm(`Usually requires ${minPlayers}+ players. Start anyway with ${currentCount}?`);
+            if (!proceed) return;
         }
 
         // Build hosting object with up-to-date players list and status 'selecting'
@@ -560,6 +563,8 @@ window.addEventListener('DOMContentLoaded', () => {
         // Persist currentLobby.players locally too so UI stays consistent
         currentLobby.players = members;
         currentLobby.settings = hostingState.settings;
+        // UPDATE LOCAL STATUS to 'selecting' so the polling loop doesn't overwrite it
+        currentLobby.status = 'selecting';
 
         // Signal selection phase (wait for players to ready + choose chars)
         // Also set mpAllowed:true so clients know host opened character selection
@@ -570,7 +575,10 @@ window.addEventListener('DOMContentLoaded', () => {
             mpAllowed: true
         });
 
-        // Show MP selection UI for host if any guest present; host's polling loop will start selection.
+        // Immediately transition host to selection screen to avoid waiting for polling loop
+        // Find first opponent for the UI
+        const opponentId = members.find(id => id !== room.clientId) || null;
+        startMPSelection(opponentId);
     };
     
     function launchGameFromLobby(settings) {
@@ -599,6 +607,9 @@ window.addEventListener('DOMContentLoaded', () => {
         mpOpponentReady = false;
         mpMeReady = false;
         mpOpponentChar = null;
+
+        // Hide Lobby UI to reduce clutter
+        if (viewLobbyRoom) viewLobbyRoom.style.display = 'none';
 
         // Ensure the selection view is visible so players can actually pick characters
         try {
@@ -787,6 +798,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Mark status locally so polling loop maintains it
+            currentLobby.status = 'starting';
+
             // Update hosting presence to "starting" so all clients see it and run the synced countdown
             const s = currentLobby.settings || {
                 mode: setMode.value,
@@ -925,6 +939,17 @@ window.addEventListener('DOMContentLoaded', () => {
             unlock: 'Unlock: Unlock GigaChad AND Upgrade "Spinning Blade" to Lvl 5.',
             themeColor: 'linear-gradient(135deg, #000000, #440000)',
             themeUrl: "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3"
+        },
+        BOBERTO: {
+            name: 'Boberto',
+            role: 'Summoner • Ghost Sheet',
+            hp: 90,
+            speed: 'Average',
+            damage: 'Minion Damage',
+            special: 'Cannot attack directly. Summons ghosts that seek and destroy enemies.',
+            blurb: "Bob's legal son, immediately abandoned. wears a sheet to cope. Spawns friendly ghosts that get stronger with upgrades. Can eventually summon Deadly Ghosts and even a friendly Mini-Bob.",
+            unlock: 'Always unlocked.',
+            themeColor: 'linear-gradient(135deg, #ffffff, #aaaaaa)'
         }
     };
     
@@ -939,7 +964,8 @@ window.addEventListener('DOMContentLoaded', () => {
         GIGACHAD: false,
         BLITZ: false,
         MONKE: false,
-        SIR_CHAD: false
+        SIR_CHAD: false,
+        BOBERTO: true
     };
 
     function loadUnlocks() {
@@ -2318,6 +2344,34 @@ window.addEventListener('DOMContentLoaded', () => {
                 sword.rotation.x = -0.3;
                 group.add(sword);
 
+            } else if (key === 'BOBERTO') {
+                // Boberto: Sheet ghost
+                const sheetMat = makeTransparent(new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+                const darkMat = makeTransparent(new THREE.MeshStandardMaterial({ color: 0x111111 }));
+                
+                // Head shape
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.6), sheetMat);
+                head.position.y = 1.6 + yOffset;
+                group.add(head);
+                
+                // Body sheet (cylinder)
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.2, 16, 1, true), sheetMat);
+                body.position.y = 0.9 + yOffset;
+                group.add(body);
+                
+                // Legs (Jeans)
+                const legL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.6, 0.25), makeTransparent(new THREE.MeshStandardMaterial({ color: 0x223355 })));
+                legL.position.set(-0.2, 0.3 + yOffset, 0);
+                group.add(legL);
+                const legR = legL.clone();
+                legR.position.x = 0.2;
+                group.add(legR);
+                
+                // Sunglasses
+                const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.1), darkMat);
+                glasses.position.set(0, 1.65 + yOffset, 0.45);
+                group.add(glasses);
+
             } else { // MMOOVT
                 const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.25, 0.55), makeTransparent(new THREE.MeshStandardMaterial({ color: 0x3d3d3d })));
                 torso.position.y = 0.9 + yOffset;
@@ -2884,15 +2938,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (loadingOverlay) loadingOverlay.classList.add('active');
         
-        // Fade out menu music
+        // HARD STOP menu music to prevent overlap
         if (menuAudio) {
-            menuAudio.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.0);
-            setTimeout(() => {
-                if (menuAudio && menuAudio.source) {
-                    menuAudio.source.stop();
-                    menuAudio = null;
-                }
-            }, 1000);
+            try {
+                if (menuAudio.gain) menuAudio.gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                if (menuAudio.source) menuAudio.source.stop();
+            } catch(e) {}
+            menuAudio = null;
+        }
+        // Force clean any lingering audio
+        if (window.menuAudio) {
+             try { window.menuAudio.source.stop(); } catch(e){}
+             window.menuAudio = null;
         }
 
         menuCanvas.style.display = 'none';
