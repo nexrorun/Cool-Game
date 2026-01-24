@@ -70,28 +70,50 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Multiplayer unlock flag: earned by beating Tier 1 in Classic (Arcade).
     function isMultiplayerUnlocked() {
-        try {
-            return !!localStorage.getItem('uberthump_multiplayer_unlocked');
-        } catch (e) {
-            return false;
-        }
+        try { return !!localStorage.getItem('uberthump_multiplayer_unlocked'); } catch (e) { return false; }
+    }
+    // TNS Unlock: Requires Calcium
+    function isTNSUnlocked() {
+        return isCharacterUnlocked('CALCIUM');
     }
 
     function updateGamemodeSelectState() {
         if (!modeSelect) return;
         const multiOption = Array.from(modeSelect.options).find(o => o.value === 'MULTI');
-        const unlocked = isMultiplayerUnlocked();
+        const tnsOption = Array.from(modeSelect.options).find(o => o.value === 'TNS');
+        
+        const mpUnlocked = isMultiplayerUnlocked();
+        const tnsUnlocked = isTNSUnlocked();
+
         if (multiOption) {
-            multiOption.disabled = !unlocked;
-            if (!unlocked && modeSelect.value === 'MULTI') {
+            multiOption.disabled = !mpUnlocked;
+            if (!mpUnlocked && modeSelect.value === 'MULTI') {
                 modeSelect.value = 'ARCADE';
                 selectedMode = 'ARCADE';
             }
         }
+        if (tnsOption) {
+            tnsOption.disabled = !tnsUnlocked;
+            if (!tnsUnlocked && modeSelect.value === 'TNS') {
+                modeSelect.value = 'ARCADE';
+                selectedMode = 'ARCADE';
+            }
+        }
+
         if (modeHelperText) {
-            if (!unlocked) {
+            if (modeSelect.value === 'MULTI' && !mpUnlocked) {
                 modeHelperText.style.display = 'block';
-                modeHelperText.textContent = 'Multiplayer unlocks after beating Tier 1 once in CLASSIC.';
+                modeHelperText.textContent = 'Multiplayer unlocks after beating Tier 1 in CLASSIC.';
+            } else if (!tnsUnlocked && modeSelect.value === 'TNS') {
+                 // Should be unreachable if disabled, but for safety
+                 modeHelperText.style.display = 'block';
+                 modeHelperText.textContent = 'Unlock CALCIUM to play Story Mode.';
+            } else if (modeSelect.value === 'TNS') {
+                 // Show TNS hint
+                 const tier = parseInt(localStorage.getItem('uberthump_tns_tier') || '1');
+                 modeHelperText.style.display = 'block';
+                 modeHelperText.style.color = '#00ff88';
+                 modeHelperText.textContent = `STORY MODE (NON-CANON): TIER ${tier}/4`;
             } else {
                 modeHelperText.style.display = 'none';
             }
@@ -155,11 +177,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 
             } else if (selectedMode === 'MULTI') {
                 // Multiplayer: triggers lobby flow when START is pressed.
-                // Hide selection for now, it will appear AFTER match found
                 charSelectGrid.style.display = 'none'; 
                 if (charDetailsEl) charDetailsEl.style.display = 'none';
                 
-                // Force pixel style for fairness/sync
                 if (pixelToggleBottom) {
                     pixelToggleBottom.checked = true;
                     pixelToggleBottom.disabled = true;
@@ -170,13 +190,61 @@ window.addEventListener('DOMContentLoaded', () => {
                 awakeningMsg.textContent = 'MULTIPLAYER: 1v1 duel after looting. Monsters give double coins/xp.';
                 if (selectionHeader) selectionHeader.style.display = 'none';
 
-            } else {
-                // Classic
+            } else if (selectedMode === 'TNS') {
+                // Totally Not Scripted (Story Mode)
                 charSelectGrid.style.display = 'grid';
                 if (charDetailsEl && !isFirstRun) charDetailsEl.style.display = 'block';
                 if (pixelToggleBottom) pixelToggleBottom.disabled = false;
+                
+                // Retrieve Tier progress
+                const tnsTier = parseInt(localStorage.getItem('uberthump_tns_tier') || '1');
+                
+                awakeningMsg.style.display = 'block';
+                awakeningMsg.style.color = '#ffd700';
+                awakeningMsg.textContent = `STORY MODE: Tier ${tnsTier}. Non-Canon adventure.`;
+                
+                // Filter Characters based on Tier
+                // Tier 1: MMOOVT, FOX, CALCIUM
+                // Tier 2: + GIGACHAD, BLITZ, MONKE
+                // Tier 3+: + SIR_CHAD, BOBERTO
+                const allowed = ['MMOOVT', 'FOX', 'CALCIUM'];
+                if (tnsTier >= 2) allowed.push('GIGACHAD', 'BLITZ', 'MONKE');
+                if (tnsTier >= 3) allowed.push('SIR_CHAD', 'BOBERTO');
+                
+                // Hide disallowed characters in grid
+                const cards = document.querySelectorAll('.character-card');
+                cards.forEach(c => {
+                    const k = c.getAttribute('data-char');
+                    if (allowed.includes(k)) {
+                        c.style.display = '';
+                    } else {
+                        c.style.display = 'none';
+                    }
+                });
+                
+                // Ensure selection is valid
+                if (!allowed.includes(selectedCharacter)) {
+                    selectedCharacter = 'MMOOVT';
+                    const card = document.querySelector(`.character-card[data-char="MMOOVT"]`);
+                    if (card) card.click();
+                }
+                
+                if (selectionHeader) selectionHeader.style.display = 'none';
+
+            } else {
+                // Classic
+                charSelectGrid.style.display = 'grid';
+                // Reset card visibility (show all unlocked)
+                const cards = document.querySelectorAll('.character-card');
+                cards.forEach(c => {
+                    const k = c.getAttribute('data-char');
+                    if (isCharacterUnlocked(k)) c.style.display = '';
+                });
+
+                if (charDetailsEl && !isFirstRun) charDetailsEl.style.display = 'block';
+                if (pixelToggleBottom) pixelToggleBottom.disabled = false;
                 awakeningMsg.style.display = 'none';
-                awakeningMsg.textContent = 'AWAKENING MODE ACTIVE: Starts as Knight. Infinite Progression. Evolution System. Permanent Pixel Mode.';
+                
                 const card = document.querySelector(`.character-card[data-char="${selectedCharacter}"]`);
                 if (card) card.click();
 
@@ -946,9 +1014,15 @@ window.addEventListener('DOMContentLoaded', () => {
             hp: 90,
             speed: 'Average',
             damage: 'Minion Damage',
-            special: 'Cannot attack directly. Summons ghosts that seek and destroy enemies.',
-            blurb: "Bob's legal son, immediately abandoned. wears a sheet to cope. Spawns friendly ghosts that get stronger with upgrades. Can eventually summon Deadly Ghosts and even a friendly Mini-Bob.",
-            unlock: 'Always unlocked.',
+            special: 'Double Jump! Summons ghosts that seek and destroy enemies.',
+            blurb: "Bob's legal son, immediately abandoned. Spawns friendly ghosts. Can eventually summon Deadly Ghosts and even a friendly Mini-Bob. Has a double jump.",
+            unlock: 'Unlock: Find the Secret Note AND unlock Calcium, GigaChad, Blitz, Monke, and Sir Chad.',
+            // Explicit requirements so the checklist and logic match what you actually did
+            unlockRequirements: [
+                'Find the Secret Note',
+                'Unlock Calcium, GigaChad, Blitz, and Monke',
+                'Unlock Sir Chad'
+            ],
             themeColor: 'linear-gradient(135deg, #ffffff, #aaaaaa)'
         }
     };
@@ -965,13 +1039,35 @@ window.addEventListener('DOMContentLoaded', () => {
         BLITZ: false,
         MONKE: false,
         SIR_CHAD: false,
-        BOBERTO: true
+        BOBERTO: false
     };
 
     function loadUnlocks() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uberthump_unlocks') || '{}');
-            return { ...DEFAULT_UNLOCKS, ...saved };
+            const savedRaw = localStorage.getItem('uberthump_unlocks') || '{}';
+            const saved = JSON.parse(savedRaw);
+            const merged = { ...DEFAULT_UNLOCKS, ...saved };
+
+            // Auto-unlock Boberto if all real requirements are met:
+            //  - Secret note found
+            //  - Calcium, GigaChad, Blitz, Monke, and Sir Chad all unlocked
+            try {
+                const hasSecretNote = localStorage.getItem('uberthump_secret_note_unlocked') === 'true';
+                if (
+                    !merged.BOBERTO &&
+                    hasSecretNote &&
+                    merged.CALCIUM &&
+                    merged.GIGACHAD &&
+                    merged.BLITZ &&
+                    merged.MONKE &&
+                    merged.SIR_CHAD
+                ) {
+                    merged.BOBERTO = true;
+                    localStorage.setItem('uberthump_unlocks', JSON.stringify(merged));
+                }
+            } catch (e2) {}
+
+            return merged;
         } catch (e) {
             return { ...DEFAULT_UNLOCKS };
         }
@@ -1018,6 +1114,28 @@ window.addEventListener('DOMContentLoaded', () => {
                     minibossAsMMOOVT: !!(saved._minibossKilledAsMMOOVT),
                     weaponLevels: JSON.parse(localStorage.getItem('uberthump_weaponLevels') || '{}'),
                 };
+                const hasCalcium = !!saved.CALCIUM;
+                const hasGiga = !!saved.GIGACHAD;
+                const hasBlitz = !!saved.BLITZ;
+                const hasMonke = !!saved.MONKE;
+                const hasSir = !!saved.SIR_CHAD;
+                const hasSecretNote = localStorage.getItem('uberthump_secret_note_unlocked') === 'true';
+
+                // Specific Key Checks first
+                if (t.includes('find the secret note') || t.includes('find secret note')) {
+                    return hasSecretNote;
+                }
+                if (t.includes('unlock sir chad') || t.includes('sir chad')) {
+                    return hasSir;
+                }
+                if (t.includes('unlock calcium')) return hasCalcium;
+                if (t.includes('unlock gigachad')) return hasGiga;
+                if (t.includes('unlock blitz')) return hasBlitz;
+                if (t.includes('unlock monke')) return hasMonke;
+                // Combined Boberto requirement line: "Unlock Calcium, GigaChad, Blitz, and Monke"
+                if (t.includes('unlock calcium') && t.includes('gigachad') && t.includes('blitz') && t.includes('monke')) {
+                    return hasCalcium && hasGiga && hasBlitz && hasMonke;
+                }
 
                 // Common patterns
                 if (t.includes('kill') && t.includes('skeleton')) {
@@ -1051,21 +1169,15 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (t.includes('defeat') && t.includes('boss')) {
                     return !!saved._defeatedAnyBoss;
                 }
-
-                // Fallback: if the text mentions a specific character key (e.g. "unlock monke")
-                if (t.includes('monke')) {
-                    return !!(saved.MONKE);
-                }
-                if (t.includes('calcium')) {
-                    return !!(saved.CALCIUM);
-                }
-                if (t.includes('unlock gigachad')) {
-                    return !!(saved.GIGACHAD);
-                }
                 if (t.includes('upgrade') && t.includes('spinning blade') && t.includes('5')) {
                     // Check spinning blade level (SWORD)
                     const wl = stats.weaponLevels || {};
                     return (wl['SWORD'] || 0) >= 5;
+                }
+                
+                // Composite check for Boberto list (fallback if individual checks above didn't catch specific list item)
+                if (t.includes('gigachad') && t.includes('blitz') && t.includes('monke')) {
+                    return hasCalcium && hasGiga && hasBlitz && hasMonke;
                 }
             } catch (e) {
                 // ignore parse errors
@@ -1396,11 +1508,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('forge-close').onclick = () => overlay.style.display = 'none';
 
         // Populate
-        // We need access to WEAPONS/RUNES. They are in Game scope or module scope. 
-        // We can't easily access them from main.js if they aren't exported or on window.
-        // Quick fix: Hardcode or import. Since Game.js exports Game class but not constants directly...
-        // Actually, let's just create a quick list here for display.
-        
+        // Updated weapon list including character specials and new additions
         const wList = [
             {n:"Lightning Rod", d:"Auto-zaps nearby enemies"},
             {n:"Being Ghosted", d:"Spawns friendly ghost bombers"},
@@ -1412,7 +1520,11 @@ window.addEventListener('DOMContentLoaded', () => {
             {n:"Ice Aura", d:"Slows and chills enemies"},
             {n:"Mini Turret", d:"Orbiting turret bot"},
             {n:"Nova Blast", d:"Periodic explosion"},
-            {n:"Bananerang", d:"Thrown banana returns"}
+            {n:"Bananerang", d:"Thrown banana returns"},
+            {n:"Spooky Bois", d:"Summons friendly ghosts (Boberto)"},
+            {n:"Knight Sword", d:"Manual slash (Melee)"},
+            {n:"Giga Sword", d:"Massive slash (Sir Chad)"},
+            {n:"Bone Throw", d:"Ricocheting bone (Calcium)"}
         ];
         
         const rList = [
@@ -1425,7 +1537,8 @@ window.addEventListener('DOMContentLoaded', () => {
             {n:"Regen Bone", d:"HP Regen"},
             {n:"Lava Boots", d:"Lava Resistance"},
             {n:"Wisdom", d:"XP Gain"},
-            {n:"Big Aura", d:"Area Size"}
+            {n:"Big Aura", d:"Area Size"},
+            {n:"Bling Bling Chain", d:"Boosts Luck / Rarity Chance"}
         ];
         
         const wContainer = overlay.querySelector('#forge-weapons');
