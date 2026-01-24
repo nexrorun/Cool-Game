@@ -27,7 +27,13 @@ const WEAPONS = {
     MINI_TURRET: { name: "Mini Turret", desc: "Little bot that auto-shoots nearby foes", type: 'weapon' },
     NOVA_BLAST:  { name: "Nova Blast", desc: "Occasional radial explosion from your position", type: 'weapon' },
     BANANERANG:  { name: "Bananerang", desc: "Thrown banana that returns to you", type: 'weapon' },
-    SUMMON_GHOST: { name: "Spooky Bois", desc: "Summons friendly ghosts to attack enemies", type: 'weapon' }
+    SUMMON_GHOST: { name: "Spooky Bois", desc: "Summons friendly ghosts to attack enemies", type: 'weapon' },
+    
+    // Intrinsic Weapons (Made upgradeable)
+    KNIGHT_SWORD: { name: "Knight Sword", desc: "Standard slash. Upgrades size & damage.", type: 'weapon' },
+    BONE: { name: "Bone Throw", desc: "Ricocheting bone. Upgrades bounces & damage.", type: 'weapon' },
+    CHAD_AURA: { name: "Chad Aura", desc: "Damage field. Upgrades radius & DPS.", type: 'weapon' },
+    GIGA_SWORD: { name: "Giga Sword", desc: "Massive slash. Upgrades area & power.", type: 'weapon' }
 };
 
 const RUNES = {
@@ -47,7 +53,7 @@ const RUNES = {
 
 const UPGRADES = {
     EXTRA_PROJECTILE: { name: "Multishot", baseDesc: "+{VAL} projectile per attack", type: 'upgrade', stat: 'extraProjectiles', add: 1 },
-    LUCK: { name: "Lucky Charm", baseDesc: "+{VAL}% rarity chance", type: 'upgrade', stat: 'luck', add: 0.2, percent: true },
+    LUCK: { name: "Bling Bling Chain", baseDesc: "+{VAL}% rarity chance", type: 'upgrade', stat: 'luck', add: 0.2, percent: true },
     VAMPIRISM: { name: "Vampirism", baseDesc: "Heal {VAL} HP per kill", type: 'upgrade', stat: 'vampirism', add: 1 },
     PIERCING: { name: "Piercing Shots", baseDesc: "Projectiles pierce {VAL} enemies", type: 'upgrade', stat: 'piercing', add: 1 },
     CRITICAL: { name: "Critical Strike", baseDesc: "+{VAL}% crit chance", type: 'upgrade', stat: 'critChance', add: 0.25, percent: true }
@@ -69,7 +75,7 @@ const CHARACTERS = {
         moveSpeed: 0.9,
         baseDamage: 1.0,
         fireRate: 0.7,
-        startingWeapons: [],
+        startingWeapons: ['KNIGHT_SWORD'],
         meleeOnly: true,
         description: 'Tanky knight with manual sword slashes.'
     },
@@ -79,7 +85,7 @@ const CHARACTERS = {
         moveSpeed: 1.3,
         baseDamage: 0.9,
         fireRate: 0.9,
-        startingWeapons: [],
+        startingWeapons: ['BONE'],
         boneRicochet: true,
         description: 'Speed-building skater skeleton with ricocheting bones.'
     },
@@ -89,7 +95,7 @@ const CHARACTERS = {
         moveSpeed: 0.75,
         baseDamage: 0.8,
         fireRate: 0.6,
-        startingWeapons: [],
+        startingWeapons: ['CHAD_AURA'],
         // Slightly smaller, much lower-DPS aura so he no longer one-shots waves
         auraRadius: 3.5,
         auraDps: 3.5,
@@ -120,7 +126,7 @@ const CHARACTERS = {
         moveSpeed: 0.85,
         baseDamage: 1.5,
         fireRate: 0.65,
-        startingWeapons: [], // Uses manual sword
+        startingWeapons: ['GIGA_SWORD'], // Uses manual sword
         meleeOnly: true,
         description: 'God Tank. Massive health and heavy damage.'
     },
@@ -338,6 +344,12 @@ export class Game {
         this.evolutionStats = { health: 0, speed: 0, offense: 0 };
         this.hasEvolved = false;
         this.graves = [];
+        this.tnsTier = 1;
+        if (this.gameMode === 'TNS') {
+            try {
+                this.tnsTier = parseInt(localStorage.getItem('uberthump_tns_tier') || '1');
+            } catch(e) {}
+        }
 
         // Player physical radius (used for grounding and collider size)
         this.playerRadius = 1.0;
@@ -347,6 +359,9 @@ export class Game {
         this.spawnRateMultiplier = this.lobbySettings.spawnMult || 1.0;
         this.lootMultiplier = this.lobbySettings.lootMult || 1.0;
         this.infiniteSlots = !!this.lobbySettings.infiniteSlots;
+        
+        // Ensure intrinsic weapons are in inventory logic even if not added yet
+        // (Handled in constructor later)
 
         // Game State
         this.isPlaying = false;
@@ -1078,6 +1093,16 @@ export class Game {
             `;
             return;
         }
+        
+        if (this.gameMode === 'TNS') {
+            const bossName = this.tnsTier === 1 ? 'Babybark' : (this.tnsTier === 2 ? 'Smolbark' : (this.tnsTier === 3 ? 'Chadbark' : 'Barkvader'));
+            containerObjText.innerHTML = `
+                <div class="objective-header">STORY: TIER ${this.tnsTier}</div>
+                <div style="font-size:0.8rem;color:#00ff88;margin-bottom:4px;">Defeat ${bossName}</div>
+                <div style="font-size:0.65rem;color:#aaa;">This is totally not scripted.</div>
+            `;
+            return;
+        }
 
         // Initialize runtime objective flags if needed
         if (this._objectives === undefined) {
@@ -1089,10 +1114,14 @@ export class Game {
         }
 
         // Update flags based on world state (but do not reveal future objectives prematurely)
-        // Only mark "foundPortal" completed when the boss portal has actually been activated.
-        // This prevents miniboss deaths or portal structure presence from prematurely marking the objective.
-        if (this.bossPortalActivated) {
+        // "Find Boss Portal" should complete once the real boss shows up (you know where to go),
+        // or if the portal has already been activated/seen.
+        if (this.bossPortalActivated || (this.bossEnemy && this.bossEnemy.isMainBoss)) {
             this._objectives.foundPortal = true;
+        }
+        // "Defeat Gatekeeper" appears as soon as the Gatekeeper exists, and completes after it's dead.
+        if (this.bossEnemy && this.bossEnemy.isMainBoss) {
+            // show as pending; flag will be completed below when bossEnemy becomes null
         }
         if (this.bossEnemy === null && this.bossPortalActivated) {
             this._objectives.defeatedBoss = true;
@@ -1193,6 +1222,9 @@ export class Game {
     }
 
     unlockCharacter(key) {
+        // TNS Mode shouldn't unlock global characters
+        if (this.gameMode === 'TNS') return;
+
         if (!this.pendingUnlocks) this.pendingUnlocks = [];
         // Check if already unlocked to avoid dupes
         const saved = JSON.parse(localStorage.getItem('uberthump_unlocks') || '{}');
@@ -1489,9 +1521,11 @@ export class Game {
             this.createAwakeningWorld();
             return;
         }
-        if (this.gameMode === 'MULTI') {
-            // For now, reuse Classic world generation for Multiplayer
-            // (rules differ, but arena layout is shared).
+        
+        // TNS Tier 4: Custom small arena
+        if (this.gameMode === 'TNS' && this.tnsTier === 4) {
+            this.createTNSFinalArena();
+            return;
         }
 
         const size = 440;
@@ -2389,6 +2423,80 @@ export class Game {
         }
     }
     
+    createTNSFinalArena() {
+        // "epic boss battle, with nonrandomly generated terrain, instead a small arena with lava floor, and the texture for grey rock"
+        const arenaRadius = 45;
+        
+        // Lava floor
+        const lavaSize = 200;
+        this.baseGroundMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(lavaSize, lavaSize),
+            this.lavaMaterial
+        );
+        this.baseGroundMesh.rotation.x = -Math.PI / 2;
+        this.baseGroundMesh.position.y = -2;
+        this.scene.add(this.baseGroundMesh);
+        
+        const floorBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+        floorBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
+        floorBody.position.set(0, -2, 0);
+        this.world.addBody(floorBody);
+        
+        // Main Arena Platform (Grey Rock)
+        const rockMat = new THREE.MeshStandardMaterial({ 
+            map: this.rockTex, 
+            roughness: 0.8,
+            color: 0x888888 
+        });
+        
+        const arenaGroup = new THREE.Group();
+        const mainPlat = new THREE.Mesh(new THREE.CylinderGeometry(arenaRadius, arenaRadius, 2, 32), rockMat);
+        mainPlat.receiveShadow = true;
+        arenaGroup.add(mainPlat);
+        
+        // Pillars around edge
+        const pillarGeo = new THREE.BoxGeometry(2, 8, 2);
+        for(let i=0; i<8; i++) {
+            const angle = (i/8) * Math.PI*2;
+            const px = Math.cos(angle) * (arenaRadius - 4);
+            const pz = Math.sin(angle) * (arenaRadius - 4);
+            const pillar = new THREE.Mesh(pillarGeo, rockMat);
+            pillar.position.set(px, 4, pz);
+            pillar.castShadow = true;
+            arenaGroup.add(pillar);
+            
+            // Physics
+            const pBody = new CANNON.Body({ mass: 0 });
+            pBody.addShape(new CANNON.Box(new CANNON.Vec3(1, 4, 1)));
+            pBody.position.set(px, 4, pz);
+            this.world.addBody(pBody);
+            this.obstacles.push({ type: 'box', x: px, z: pz, halfExtents: {x:1, z:1} });
+        }
+        
+        this.scene.add(arenaGroup);
+        
+        // Physics for platform
+        const platBody = new CANNON.Body({ mass: 0 });
+        platBody.addShape(new CANNON.Cylinder(arenaRadius, arenaRadius, 2, 16));
+        // Cannon cylinder orientation is different, need to align
+        const q = new CANNON.Quaternion();
+        q.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+        platBody.quaternion = q;
+        this.world.addBody(platBody);
+        
+        this.terrainPieces.push({ x:0, z:0, width: arenaRadius*2, depth: arenaRadius*2, height: 1, group: arenaGroup });
+        
+        this.spawnPoint = new THREE.Vector3(0, 3, 30);
+        
+        // Dark, epic lighting
+        this.scene.background = new THREE.Color(0x220000);
+        this.scene.fog = new THREE.FogExp2(0x220000, 0.02);
+        
+        // Create boss spawn logic handled by update loop or init
+        // For TNS Tier 4, we spawn Barkvader immediately
+        this.bossPortal = null; // No portal
+    }
+
     createAwakeningWorld() {
         // Huge 2D Maze translated to 3D
         const mazeSize = 25; // Cells
@@ -3672,11 +3780,16 @@ export class Game {
                 if (p instanceof Promise) p.catch(() => {});
             }
 
-            if (this.characterKey === 'MMOOVT' || this.characterKey === 'SIR_CHAD') {
+            // Check for manual slash ability (Any char with sword)
+            const hasSword = (this.weaponLevels['KNIGHT_SWORD'] || 0) > 0 || (this.weaponLevels['GIGA_SWORD'] || 0) > 0;
+
+            if (this.characterKey === 'MMOOVT' || this.characterKey === 'SIR_CHAD' || hasSword) {
                 this.knightSlash();
-            } else if (this.characterKey === 'CALCIUM') {
+            }
+            
+            if (this.characterKey === 'CALCIUM') {
                 this.throwBone();
-            } else if (this.characterKey === 'BOBERTO') {
+            } else if (this.characterKey === 'BOBERTO' && !hasSword) {
                 // Manual ghost spawn check? Or just passive.
                 // Prompt says "He actually cant directly attack... hes a GHOST".
                 // So clicking does nothing or maybe a little poof effect.
@@ -3898,27 +4011,19 @@ export class Game {
         const group = new THREE.Group();
         
         // 1. Black Void Sphere (Inner)
-        const voidGeo = new THREE.SphereGeometry(2.5, 32, 32);
+        // Scaled down slightly to fit inside arch
+        const voidGeo = new THREE.SphereGeometry(2.0, 32, 32);
         const voidMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const voidSphere = new THREE.Mesh(voidGeo, voidMat);
+        // Elongate vertically for portal shape
+        voidSphere.scale.set(1, 1.4, 1);
         group.add(voidSphere);
         
-        // 2. Rim (Glowing if active, dark stone if inactive)
-        const rimColor = isActive ? 0x00ffff : 0x333333;
-        const rimGeo = new THREE.TorusGeometry(2.5, 0.15, 16, 64);
-        const rimMat = new THREE.MeshBasicMaterial({ color: rimColor, toneMapped: false });
-        const rim = new THREE.Mesh(rimGeo, rimMat);
-        // Identify for later activation
-        rim.userData = { isRim: true }; 
-        group.add(rim);
-        
-        // 3. Spinning Boomerang Thing
+        // 2. Spinning Energy Blades (The "Activated" Look)
         const spinner = new THREE.Group();
-        const bladeColor = isActive ? 0x0088ff : 0x222222;
-        const bladeOpacity = isActive ? 0.8 : 0.2;
-        
-        const bladeGeo = new THREE.TorusGeometry(3.0, 0.1, 8, 32, Math.PI); // Half ring
-        const bladeMat = new THREE.MeshBasicMaterial({ color: bladeColor, transparent: true, opacity: bladeOpacity, toneMapped: false });
+        const bladeColor = 0x00ffff; // Always cyan when active
+        const bladeGeo = new THREE.TorusGeometry(2.5, 0.1, 8, 32, Math.PI); 
+        const bladeMat = new THREE.MeshBasicMaterial({ color: bladeColor, transparent: true, opacity: 0.8, toneMapped: false });
         const blade = new THREE.Mesh(bladeGeo, bladeMat);
         spinner.add(blade);
         const blade2 = blade.clone();
@@ -3926,17 +4031,18 @@ export class Game {
         spinner.add(blade2);
         
         spinner.userData = { isSpinner: true };
-        if (!isActive) spinner.visible = false; // Hide spinner completely when inactive
+        // Hide if not active
+        if (!isActive) spinner.visible = false;
         group.add(spinner);
         
-        // 4. Pixel Particles
+        // 3. Inner Particle System (The Intro Portal Look)
         const pGroup = new THREE.Group();
         const pGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
         const pMat = new THREE.MeshBasicMaterial({ color: 0xaaddff, toneMapped: false });
         
         for(let i=0; i<30; i++) {
             const p = new THREE.Mesh(pGeo, pMat);
-            const r = 2.8 + Math.random() * 1.5;
+            const r = 2.2 + Math.random();
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.random() * Math.PI;
             p.position.setFromSphericalCoords(r, phi, theta);
@@ -3948,8 +4054,26 @@ export class Game {
             pGroup.add(p);
         }
         pGroup.userData = { isParticleSystem: true };
-        if (!isActive) pGroup.visible = false; // Hide particles when inactive
+        if (!isActive) pGroup.visible = false;
         group.add(pGroup);
+
+        // 4. Distant Beacons (Giant spinning particles around the whole structure)
+        const beaconGroup = new THREE.Group();
+        const bGeo = new THREE.SphereGeometry(0.5);
+        const bMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, toneMapped: false });
+        for(let i=0; i<6; i++) {
+            const b = new THREE.Mesh(bGeo, bMat);
+            b.position.set(10, 0, 0); // radius 10
+            const orbit = new THREE.Group();
+            orbit.rotation.y = (i / 6) * Math.PI * 2;
+            orbit.rotation.z = Math.random() * 0.5; // Slight tilt
+            orbit.add(b);
+            orbit.userData = { isOrbiter: true, speed: 1.0 + Math.random() };
+            beaconGroup.add(orbit);
+        }
+        beaconGroup.userData = { isBeacon: true };
+        if (!isActive) beaconGroup.visible = false;
+        group.add(beaconGroup);
         
         return group;
     }
@@ -3981,36 +4105,87 @@ export class Game {
         const terrainY = choice.y;
         const group = new THREE.Group();
 
-        // Use new Void Portal visual - INACTIVE by default (false passed)
+        // 1. Stone Platform Base (Steps)
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, flatShading: true });
+        const base1 = new THREE.Mesh(new THREE.CylinderGeometry(7, 8, 0.6, 8), stoneMat);
+        base1.position.y = terrainY + 0.3;
+        group.add(base1);
+        const base2 = new THREE.Mesh(new THREE.CylinderGeometry(5, 6, 0.6, 8), stoneMat);
+        base2.position.y = terrainY + 0.8;
+        group.add(base2);
+
+        // 2. Archway (Rugged Rocks)
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 1.0, flatShading: true });
+        
+        // Function to build a rugged pillar
+        const buildPillar = (offsetX) => {
+            const pillar = new THREE.Group();
+            for(let i=0; i<5; i++) {
+                const w = 1.8 - i * 0.15;
+                const block = new THREE.Mesh(new THREE.BoxGeometry(w, 1.2, w), rockMat);
+                block.position.y = i * 1.1;
+                // Add "runes" or details?
+                block.rotation.y = (Math.random() - 0.5) * 0.2;
+                block.rotation.z = (Math.random() - 0.5) * 0.1;
+                pillar.add(block);
+            }
+            pillar.position.set(offsetX, terrainY + 1.2, 0);
+            // Angle inwards slightly
+            pillar.rotation.z = offsetX > 0 ? 0.1 : -0.1;
+            group.add(pillar);
+            return pillar;
+        };
+
+        const leftPillar = buildPillar(-3.5);
+        const rightPillar = buildPillar(3.5);
+
+        // Top Arch (Curved blocks)
+        const archGroup = new THREE.Group();
+        archGroup.position.y = terrainY + 6.5;
+        for(let i=0; i<5; i++) {
+            const angle = Math.PI + (i/4) * Math.PI; // Semicircle top
+            // Place blocks along arch
+            const bx = Math.cos(angle) * 3.5;
+            const by = Math.sin(angle) * 2.0; // Squashed vertically
+            const block = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.8), rockMat);
+            block.position.set(bx, by, 0);
+            block.rotation.z = angle - Math.PI/2;
+            archGroup.add(block);
+        }
+        group.add(archGroup);
+
+        // Keystone Skull
+        const skullGroup = new THREE.Group();
+        const boneMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6 });
+        const cranium = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 1.0), boneMat);
+        skullGroup.add(cranium);
+        const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), boneMat);
+        jaw.position.y = -0.7;
+        skullGroup.add(jaw);
+        // Eyes
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.1), eyeMat);
+        eyeL.position.set(-0.3, 0, 0.51);
+        skullGroup.add(eyeL);
+        const eyeR = eyeL.clone();
+        eyeR.position.x = 0.3;
+        skullGroup.add(eyeR);
+
+        skullGroup.position.set(0, terrainY + 8.5, 0);
+        group.add(skullGroup);
+
+        // 3. Void Portal Visuals (The "Active" part)
+        // Hidden by default
         const portalModel = this.createVoidPortalModel(false);
-        // Raise it up a bit
-        portalModel.position.y = terrainY + 3.0;
-        // HIDE entirely until boss death as requested
+        // Position in center of arch
+        portalModel.position.set(0, terrainY + 4.5, 0);
         portalModel.visible = false;
         group.add(portalModel);
 
-        // Stone Base
-        const base = new THREE.Mesh(
-            new THREE.CylinderGeometry(3.0, 3.5, 0.5, 16),
-            new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 })
-        );
-        base.position.y = terrainY + 0.25;
-        group.add(base);
-
-        // Stone Pillars around
-        const pillarMat = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.9 });
-        for(let i=0; i<4; i++) {
-            const angle = (i / 4) * Math.PI * 2;
-            const r = 4.5;
-            const px = Math.cos(angle) * r;
-            const pz = Math.sin(angle) * r;
-            const ph = 4 + (i%2);
-            const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.8, ph, 0.8), pillarMat);
-            pillar.position.set(px, terrainY + ph/2, pz);
-            group.add(pillar);
-        }
-
         group.position.set(choice.x, 0, choice.z);
+        // Rotate to face center roughly
+        group.lookAt(0, 0, 0);
+        
         this.scene.add(group);
 
         this.bossPortal = {
@@ -4056,149 +4231,245 @@ export class Game {
         const terrainY = this.getTerrainHeight(x, z);
 
         const group = new THREE.Group();
+        let bossRing = null;
+        let armL, armR, legL, legR;
 
-        // Torso – wide, armored chest
-        const torso = new THREE.Mesh(
-            new THREE.BoxGeometry(2.6, 2.2, 1.5),
-            new THREE.MeshStandardMaterial({
-                color: 0x3a0606,
-                emissive: 0x160101,
-                emissiveIntensity: 0.6,
-                flatShading: true,
-                metalness: 0.2,
-                roughness: 0.8
-            })
-        );
-        torso.position.y = 2.1;
-        group.add(torso);
+        // Custom visuals for TNS bosses
+        if (this.gameMode === 'TNS' && isMain) {
+            const barkMat = new THREE.MeshStandardMaterial({ color: 0x5D4037, roughness: 0.9 });
+            const darkBarkMat = new THREE.MeshStandardMaterial({ color: 0x3E2723, roughness: 1.0 });
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x33691E, flatShading: true });
+            const glowingRed = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const glowingGreen = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
 
-        // Shoulder armor
-        const shoulderMat = new THREE.MeshStandardMaterial({
-            color: 0x771111,
-            emissive: 0x330000,
-            emissiveIntensity: 0.8,
-            flatShading: true
-        });
-        const shoulderL = new THREE.Mesh(
-            new THREE.BoxGeometry(1.2, 0.8, 1.2),
-            shoulderMat
-        );
-        shoulderL.position.set(-1.8, 2.9, 0);
-        group.add(shoulderL);
-        const shoulderR = shoulderL.clone();
-        shoulderR.position.x = 1.8;
-        group.add(shoulderR);
+            if (this.tnsTier === 1) { 
+                // Babybark: Cute stump
+                const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 1.5, 12), barkMat);
+                stump.position.y = 0.75;
+                group.add(stump);
+                
+                // Big eyes
+                const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.15), glowingGreen);
+                eyeL.position.set(-0.3, 1.0, 0.8);
+                group.add(eyeL);
+                const eyeR = eyeL.clone();
+                eyeR.position.x = 0.3;
+                group.add(eyeR);
+                
+                // Tiny leaf on head
+                const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.6, 4), leafMat);
+                leaf.position.set(0, 1.5, 0);
+                leaf.rotation.z = 0.3;
+                group.add(leaf);
+                
+                // Stick arms
+                armL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.1), darkBarkMat);
+                armL.position.set(-0.9, 0.8, 0);
+                armL.rotation.z = 0.5;
+                group.add(armL);
+                armR = armL.clone();
+                armR.position.set(0.9, 0.8, 0);
+                armR.rotation.z = -0.5;
+                group.add(armR);
 
-        // Head with crown/horns
-        const head = new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 1.5, 1.5),
-            new THREE.MeshStandardMaterial({
-                color: 0x5b1111,
-                emissive: 0x330000,
-                emissiveIntensity: 1.0,
-                flatShading: true
-            })
-        );
-        head.position.y = 3.8;
-        group.add(head);
+            } else if (this.tnsTier === 2) {
+                // Smolbark: Taller, angrier
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 2.5, 10), barkMat);
+                trunk.position.y = 1.25;
+                group.add(trunk);
+                
+                // Angry eyebrows
+                const browL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.1), darkBarkMat);
+                browL.position.set(-0.25, 1.9, 0.8);
+                browL.rotation.z = 0.2;
+                group.add(browL);
+                const browR = browL.clone();
+                browR.position.set(0.25, 1.9, 0.8);
+                browR.rotation.z = -0.2;
+                group.add(browR);
+                
+                const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12), glowingRed);
+                eyeL.position.set(-0.25, 1.8, 0.85);
+                group.add(eyeL);
+                const eyeR = eyeL.clone();
+                eyeR.position.x = 0.25;
+                group.add(eyeR);
+                
+                // Branch arms with leaves
+                armL = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1.2), darkBarkMat);
+                armL.position.set(-1.1, 1.5, 0);
+                armL.rotation.z = 0.3;
+                group.add(armL);
+                const lLeaf = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4), leafMat);
+                lLeaf.position.y = 0.6;
+                armL.add(lLeaf);
+                
+                armR = armL.clone();
+                armR.position.set(1.1, 1.5, 0);
+                armR.rotation.z = -0.3;
+                group.add(armR);
 
-        const hornMat = new THREE.MeshStandardMaterial({
-            color: 0xffd38a,
-            flatShading: true
-        });
-        const hornL = new THREE.Mesh(
-            new THREE.ConeGeometry(0.25, 0.9, 6),
-            hornMat
-        );
-        hornL.rotation.z = Math.PI * 0.35;
-        hornL.position.set(-0.9, 4.5, 0.2);
-        group.add(hornL);
-        const hornR = hornL.clone();
-        hornR.rotation.z = -Math.PI * 0.35;
-        hornR.position.x = 0.9;
-        group.add(hornR);
+            } else if (this.tnsTier === 3) {
+                // Chadbark: Massive muscular tree
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.6, 1.0), barkMat);
+                torso.position.y = 2.0;
+                group.add(torso);
+                
+                const abs = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 0.8), darkBarkMat);
+                abs.position.y = 0.8;
+                group.add(abs);
+                
+                const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), barkMat);
+                head.position.y = 3.2;
+                group.add(head);
+                
+                // Shades
+                const shades = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.2), new THREE.MeshBasicMaterial({color:0x000000}));
+                shades.position.set(0, 3.2, 0.5);
+                group.add(shades);
+                
+                // Massive arms
+                armL = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), barkMat);
+                armL.position.set(-1.4, 2.2, 0);
+                group.add(armL);
+                armR = armL.clone();
+                armR.position.x = 1.4;
+                group.add(armR);
+                
+                // Roots as legs
+                legL = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 1.5), darkBarkMat);
+                legL.position.set(-0.6, 0.75, 0);
+                group.add(legL);
+                legR = legL.clone();
+                legR.position.x = 0.6;
+                group.add(legR);
 
-        // Eyes
-        const eyeL = new THREE.Mesh(
-            new THREE.BoxGeometry(0.25, 0.25, 0.15),
-            new THREE.MeshBasicMaterial({ color: 0xff3333 })
-        );
-        eyeL.position.set(-0.4, 4.0, 0.9);
-        group.add(eyeL);
-        const eyeR = eyeL.clone();
-        eyeR.position.x = 0.4;
-        group.add(eyeR);
+            } else {
+                // Barkvader: Sci-fi Tree Lord
+                const blackWood = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
+                const neonRed = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                
+                const cape = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.5, 0.2), new THREE.MeshStandardMaterial({color:0x000000}));
+                cape.position.set(0, 2.0, -0.8);
+                group.add(cape);
+                
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 2.5, 8), blackWood);
+                body.position.y = 1.5;
+                group.add(body);
+                
+                // Control panel
+                const panel = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.1), new THREE.MeshBasicMaterial({color:0x555555}));
+                panel.position.set(0, 1.8, 0.9);
+                group.add(panel);
+                // Buttons
+                const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), neonRed); b1.position.set(-0.15, 0, 0.05); panel.add(b1);
+                const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), new THREE.MeshBasicMaterial({color:0x00ff00})); b2.position.set(0.15, 0, 0.05); panel.add(b2);
+                
+                // Helmet
+                const helm = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16, 0, Math.PI*2, 0, Math.PI*0.55), blackWood);
+                helm.position.y = 3.0;
+                group.add(helm);
+                
+                // Mask
+                const mask = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.4), new THREE.MeshStandardMaterial({color:0x333333}));
+                mask.position.set(0, 3.0, 0.6);
+                group.add(mask);
+                
+                // Red Lightsaber / Staff
+                const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4.5), neonRed);
+                staff.position.set(1.4, 2.0, 0.5);
+                staff.rotation.x = 0.2;
+                group.add(staff);
+                
+                armL = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.8), blackWood);
+                armL.position.set(-1.1, 2.0, 0);
+                group.add(armL);
+                armR = armL.clone();
+                armR.position.x = 1.1;
+                group.add(armR);
+                
+                legL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.5, 0.5), blackWood);
+                legL.position.set(-0.5, 0.75, 0);
+                group.add(legL);
+                legR = legL.clone();
+                legR.position.x = 0.5;
+                group.add(legR);
+            }
 
-        // Jaw
-        const jaw = new THREE.Mesh(
-            new THREE.BoxGeometry(1.4, 0.5, 1.3),
-            new THREE.MeshStandardMaterial({
-                color: 0x3a0606,
-                flatShading: true
-            })
-        );
-        jaw.position.y = 3.2;
-        group.add(jaw);
+        } else {
+            // UPGRADED Gatekeeper visuals (Default)
+            const darkMetal = new THREE.MeshStandardMaterial({ color: 0x110505, metalness: 0.8, roughness: 0.2 });
+            const magmaSkin = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0x330000, emissiveIntensity: 0.5 });
+            const glowRed = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
-        // Arms
-        const armMat = new THREE.MeshStandardMaterial({
-            color: 0x4a0808,
-            flatShading: true
-        });
-        const armL = new THREE.Mesh(
-            new THREE.BoxGeometry(0.7, 2.2, 0.7),
-            armMat
-        );
-        armL.position.set(-2.1, 1.9, 0);
-        group.add(armL);
-        const armR = armL.clone();
-        armR.position.x = 2.1;
-        group.add(armR);
+            // Giant segmented body
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.0, 3.0, 6), darkMetal);
+            torso.position.y = 3.0;
+            group.add(torso);
+            
+            // Glowing core
+            const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.8), new THREE.MeshBasicMaterial({ color: 0xff4400 }));
+            core.position.set(0, 3.2, 0.8);
+            group.add(core);
 
-        // Claws
-        const clawMat = new THREE.MeshStandardMaterial({
-            color: 0xffd38a,
-            flatShading: true
-        });
-        const clawL = new THREE.Mesh(
-            new THREE.BoxGeometry(0.4, 0.4, 0.9),
-            clawMat
-        );
-        clawL.position.set(-2.1, 0.6, 0.7);
-        group.add(clawL);
-        const clawR = clawL.clone();
-        clawR.position.x = 2.1;
-        group.add(clawR);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), darkMetal);
+            head.position.y = 5.0;
+            group.add(head);
+            
+            // Floating Crown
+            const crownRing = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 8, 16), glowRed);
+            crownRing.position.set(0, 6.0, 0);
+            crownRing.rotation.x = Math.PI/2;
+            group.add(crownRing);
 
-        // Legs
-        const legMat = new THREE.MeshStandardMaterial({
-            color: 0x260304,
-            flatShading: true
-        });
-        const legL = new THREE.Mesh(
-            new THREE.BoxGeometry(0.9, 2.0, 0.9),
-            legMat
-        );
-        legL.position.set(-0.8, 0.9, 0);
-        group.add(legL);
-        const legR = legL.clone();
-        legR.position.x = 0.8;
-        group.add(legR);
+            // Eyes
+            const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.2), glowRed);
+            eyeL.position.set(-0.3, 5.2, 0.6);
+            group.add(eyeL);
+            const eyeR = eyeL.clone();
+            eyeR.position.x = 0.3;
+            group.add(eyeR);
 
-        // Waist / belt
-        const belt = new THREE.Mesh(
-            new THREE.BoxGeometry(2.2, 0.6, 1.4),
-            new THREE.MeshStandardMaterial({
-                color: 0x992222,
-                emissive: 0x550000,
-                emissiveIntensity: 0.8,
-                flatShading: true
-            })
-        );
-        belt.position.y = 1.6;
-        group.add(belt);
+            // Huge Arms
+            armL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.5, 0.8), magmaSkin);
+            armL.position.set(-2.2, 3.5, 0);
+            group.add(armL);
+            armR = armL.clone();
+            armR.position.x = 2.2;
+            group.add(armR);
+            
+            // Pauldrons
+            const pauldron = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 8), darkMetal);
+            pauldron.position.set(-2.2, 5.0, 0);
+            group.add(pauldron);
+            const pauldronR = pauldron.clone();
+            pauldronR.position.x = 2.2;
+            group.add(pauldronR);
 
-        // Visible boss arena ring on the ground
+            // Legs
+            legL = new THREE.Mesh(new THREE.BoxGeometry(1.0, 3.0, 1.0), darkMetal);
+            legL.position.set(-1.0, 1.5, 0);
+            group.add(legL);
+            legR = legL.clone();
+            legR.position.x = 1.0;
+            group.add(legR);
+            
+            // Giant Pitchfork (Trident) held in right hand
+            const tridentGroup = new THREE.Group();
+            const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 8, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+            tridentGroup.add(staff);
+            const tipGeo = new THREE.ConeGeometry(0.2, 1.5, 8);
+            const tipMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000 });
+            const t1 = new THREE.Mesh(tipGeo, tipMat); t1.position.y = 4; tridentGroup.add(t1);
+            const t2 = t1.clone(); t2.position.set(-0.8, 3.5, 0); t2.rotation.z = 0.2; tridentGroup.add(t2);
+            const t3 = t1.clone(); t3.position.set(0.8, 3.5, 0); t3.rotation.z = -0.2; tridentGroup.add(t3);
+            
+            tridentGroup.position.set(2.2, 2.0, 1.5);
+            tridentGroup.rotation.x = -0.4;
+            group.add(tridentGroup);
+        }
+
+        // Visible boss arena ring on the ground (for everyone)
         const ringGeo = new THREE.RingGeometry(5.0, 5.8, 48);
         const ringMat = new THREE.MeshBasicMaterial({
             color: 0xff4444,
@@ -4206,7 +4477,7 @@ export class Game {
             opacity: 0.85,
             side: THREE.DoubleSide
         });
-        const bossRing = new THREE.Mesh(ringGeo, ringMat);
+        bossRing = new THREE.Mesh(ringGeo, ringMat);
         bossRing.rotation.x = -Math.PI / 2;
         bossRing.position.y = terrainY + 0.02;
         group.add(bossRing);
@@ -4225,13 +4496,27 @@ export class Game {
         this.world.addBody(physicsBody);
 
         // Add active boss behaviour state: attack timer and teleport cooldown
-        // BUFFED HP significantly
-        const maxHpVal = 3000;
-        const hpVal = hpOverride !== null ? hpOverride : maxHpVal;
+        // MASSIVELY BUFFED HP (10x base)
+        // TNS Boss Overrides
+        let bossName = 'The Gatekeeper';
+        let customHp = 30000;
+        
+        if (this.gameMode === 'TNS' && isMain) {
+            if (this.tnsTier === 1) { bossName = 'Babybark'; customHp = 5000; }
+            else if (this.tnsTier === 2) { bossName = 'Smolbark'; customHp = 15000; }
+            else if (this.tnsTier === 3) { bossName = 'Chadbark'; customHp = 45000; }
+            else if (this.tnsTier === 4) { bossName = 'Barkvader'; customHp = 100000; }
+        } else {
+            // Classic Scaling: Base 30k * 15^(tier-1)
+            customHp = 30000 * Math.pow(15, this.tier - 1);
+        }
+
+        const hpVal = hpOverride !== null ? hpOverride : customHp;
+        const maxHpVal = hpVal; // Fix: Define maxHpVal
 
         const bossObj = {
             id: 'BOSS_MAIN_' + Date.now(),
-            name: 'The Gatekeeper',
+            name: bossName,
             mesh: group,
             body: physicsBody,
             hp: hpVal,
@@ -4254,6 +4539,9 @@ export class Game {
         this.bossEnemy = bossObj;
         // Track the current main boss instance so we only react to this exact boss's death
         this.currentMainBossId = bossObj.id;
+        
+
+
         this.enemies.push(this.bossEnemy);
         this.createBossBar(this.bossEnemy);
 
@@ -4343,6 +4631,9 @@ export class Game {
 
     spawnMiniboss(type, hpOverride = null) {
         if (this.bossEnemy) return; 
+        
+        // Classic Scaling for Minibosses
+        const scale = Math.pow(15, this.tier - 1);
 
         const playerPos = this.playerBody.position;
         // Find valid spawn location near player
@@ -4362,64 +4653,83 @@ export class Game {
         
         if (type === 'JOHN_PORK') {
             name = "John Pork the Terrible";
-            // Pig head on suit body
-            const suitMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, 0.6), suitMat);
-            body.position.y = 0.9;
+            // Realistic Pigman Bruiser
+            const suitMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const pigSkin = new THREE.MeshStandardMaterial({ color: 0xffaa88 });
+            
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.0, 1.0), suitMat);
+            body.position.y = 1.5;
             group.add(body);
             
-            const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), new THREE.MeshStandardMaterial({ color: 0xffaa88 }));
-            head.position.y = 2.0;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.4), pigSkin);
+            head.position.y = 2.8;
             group.add(head);
             
-            const snout = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.2), new THREE.MeshStandardMaterial({ color: 0xff8866 }));
-            snout.position.set(0, 1.9, 0.5);
+            const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0xff8866 }));
+            snout.rotation.x = Math.PI/2;
+            snout.position.set(0, 2.7, 0.8);
             group.add(snout);
+            
+            // Fists
+            const fistL = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), pigSkin);
+            fistL.position.set(-1.0, 1.5, 0.8);
+            group.add(fistL);
+            const fistR = fistL.clone();
+            fistR.position.x = 1.0;
+            group.add(fistR);
             
         } else if (type === 'KAREN') {
             name = "Queen Karen";
-            // Angry with distinct hair
-            const dressMat = new THREE.MeshStandardMaterial({ color: 0xff00ff });
-            const body = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2.0, 8), dressMat);
-            body.position.y = 1.0;
+            // Floating Banshee
+            const dressMat = new THREE.MeshStandardMaterial({ color: 0xaa00aa, side: THREE.DoubleSide });
+            const body = new THREE.Mesh(new THREE.ConeGeometry(1.0, 3.0, 16, 1, true), dressMat);
+            body.position.y = 1.5;
             group.add(body);
             
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshStandardMaterial({ color: 0xffccaa }));
-            head.position.y = 2.2;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.6), new THREE.MeshStandardMaterial({ color: 0xffddbb }));
+            head.position.y = 3.2;
             group.add(head);
             
-            // Hair
-            const hair = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.2), new THREE.MeshStandardMaterial({ color: 0xffff00 }));
-            hair.position.set(0, 2.6, 0);
-            hair.rotation.z = 0.2;
+            // The Hair (Iconic Wedge)
+            const hairGeo = new THREE.BoxGeometry(1.4, 1.0, 1.4);
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.set(0, 3.6, 0.2);
+            hair.rotation.x = -0.3;
             group.add(hair);
             
         } else {
             name = "Bruh-nubis";
-            // Anubis style
-            const skinMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-            const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700 });
+            // Golden God
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 });
+            const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
             
-            const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.8, 0.5), skinMat);
-            body.position.y = 0.9;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.2, 0.6), blackMat);
+            body.position.y = 1.5;
             group.add(body);
             
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.8), skinMat);
-            head.position.y = 2.0;
+            // Jackal Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 1.0), blackMat);
+            head.position.y = 2.9;
             group.add(head);
             
-            // Ears
-            const earL = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.8, 4), skinMat);
-            earL.position.set(-0.3, 2.6, 0);
+            const snout = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.8), blackMat);
+            snout.position.set(0, 2.8, 0.8);
+            group.add(snout);
+            
+            // Tall Ears
+            const earL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 0.2), goldMat);
+            earL.position.set(-0.3, 3.6, 0);
             group.add(earL);
             const earR = earL.clone();
             earR.position.x = 0.3;
             group.add(earR);
             
-            const collar = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.1, 8, 16), goldMat);
-            collar.rotation.x = Math.PI/2;
-            collar.position.y = 1.7;
-            group.add(collar);
+            // Staff
+            const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.0), goldMat);
+            staff.position.set(0.8, 2.0, 0.5);
+            staff.rotation.x = 0.2;
+            group.add(staff);
         }
 
         group.position.set(x, y, z);
@@ -4429,7 +4739,8 @@ export class Game {
         body.addShape(new CANNON.Sphere(1.5));
         this.world.addBody(body);
         
-        const maxHpVal = 1200;
+        const baseHp = 15000;
+        const maxHpVal = baseHp * scale; 
         const hpVal = hpOverride !== null ? hpOverride : maxHpVal;
 
         // Slightly buffed HP for minibosses
@@ -5180,8 +5491,9 @@ export class Game {
         physicsBody.addShape(shape);
         this.world.addBody(physicsBody);
         
-        // Tier Scaling
-        const tierHpMult = this.tier === 1 ? 1 : 15;
+        // Tier Scaling - 15x PER tier exponential
+        const tierHpMult = Math.pow(15, this.tier - 1);
+        
         // Base stats from Bestiary relative values (Halved as requested)
         const bestiaryHP = {
             'skeleton': 5,
@@ -5414,43 +5726,15 @@ export class Game {
 
                 this.bossPortalActivated = true;
 
-                // If portal visuals exist, tune their materials for a clear "opened" appearance
-                if (this.bossPortal && this.bossPortal.ring && this.bossPortal.core) {
-                    if (this.portalRing && this.portalRing.material) {
-                        try {
-                            const src = this.portalRing.material;
-                            const dst = this.bossPortal.ring.material;
-                            if (src.color && dst.color) dst.color.copy(src.color);
-                            if (src.emissive && dst.emissive) dst.emissive.copy(src.emissive);
-                            dst.opacity = src.opacity !== undefined ? src.opacity : dst.opacity;
-                            dst.transparent = src.transparent !== undefined ? src.transparent : dst.transparent;
-                            if (dst.emissive) dst.emissive.multiplyScalar(1.25);
-                            try { this.bossPortal.ring.scale.set(1.4, 1.4, 1.4); } catch(e){}
-                        } catch(e){}
-                    } else {
-                        try {
-                            this.bossPortal.ring.material.color.setHex(0x00ff88);
-                            if (this.bossPortal.ring.material.emissive) this.bossPortal.ring.material.emissive.setHex(0x00ff88);
-                            this.bossPortal.ring.scale.set(1.4, 1.4, 1.4);
-                        } catch(e){}
+                // If portal visuals exist, simply reveal the full portal model so it's obvious
+                try {
+                    if (this.bossPortal && this.bossPortal.visuals) {
+                        this.bossPortal.visuals.visible = true;
+                        // Slight pulse/scale for emphasis
+                        this.bossPortal.visuals.scale.setScalar(1.1);
                     }
-
-                    if (this.portalCore && this.portalCore.material) {
-                        try {
-                            const sc = this.portalCore.material;
-                            const dc = this.bossPortal.core.material;
-                            if (sc.color && dc.color) dc.color.copy(sc.color);
-                            dc.opacity = sc.opacity !== undefined ? sc.opacity : dc.opacity;
-                            dc.transparent = sc.transparent !== undefined ? sc.transparent : dc.transparent;
-                            try { this.bossPortal.core.scale.set(1.4, 1.4, 1.4); } catch(e){}
-                        } catch(e){}
-                    } else {
-                        try {
-                            this.bossPortal.core.material.color.setHex(0x002211);
-                            this.bossPortal.core.material.opacity = 0.95;
-                            this.bossPortal.core.scale.set(1.4, 1.4, 1.4);
-                        } catch(e){}
-                    }
+                } catch (e) {
+                    console.warn('Failed to reveal boss portal visuals:', e);
                 }
 
                 this.showToast('Main Boss defeated! Portal open!');
@@ -6453,6 +6737,29 @@ export class Game {
     }
 
     winGame() {
+        // TNS Logic: Finish Story Tier
+        if (this.gameMode === 'TNS') {
+            const nextTier = this.tnsTier + 1;
+            
+            this.showToast(`TIER ${this.tnsTier} COMPLETE!`);
+            this.playSound('unlock', 1.0, 1.0);
+            
+            // Save Progress
+            if (nextTier > 4) {
+                // Beat the game?
+                alert("YOU HAVE BEATEN THE TOTALLY NOT SCRIPTED STORY! CONGRATS!");
+                // Reset to tier 1 or stay 4? Let's stay 4 or reset.
+                localStorage.setItem('uberthump_tns_tier', '1'); 
+            } else {
+                localStorage.setItem('uberthump_tns_tier', nextTier.toString());
+            }
+            
+            setTimeout(() => {
+                window.location.reload(); // Return to menu
+            }, 3000);
+            return;
+        }
+
         // Prevent re-entrancy: if a tier transition is already running, ignore subsequent triggers.
         if (this._tierTransitioning) return;
         this._tierTransitioning = true;
@@ -7127,16 +7434,42 @@ export class Game {
         }
 
         // Lava damage when standing on default ground outside the safe arena
-        // Stronger lava: 20 damage per second (configurable), tick per 1s for clarity and to keep runes meaningful
+        // Base lava: 20 DPS; each next tier multiplies DPS by 10 (tier1=20, tier2=200, tier3=2000, ...)
         const onLava = this.isLava(this.playerBody.position.x, this.playerBody.position.z);
         if (onLava) {
             this.lavaDamageTimer += dt;
-            const lavaDps = 20; // damage per second
-            // Apply damage each full second (accumulate fractional time)
+            // Compute DPS according to current tier (defensive clamp to avoid negative tiers)
+            const baseLavaDps = 20;
+            const tierMultiplier = Math.pow(10, Math.max(0, (this.tier || 1) - 1));
+            const lavaDps = baseLavaDps * tierMultiplier;
+
+            // Apply damage each full second (accumulate fractional time).
+            // Apply directly to player health so lava damage bypasses the generic global damage multiplier,
+            // but still respects lava resistance (lavaResist).
             while (this.lavaDamageTimer >= 1.0) {
                 const resist = Math.min(this.stats.lavaResist || 0, 0.9);
                 const dmg = lavaDps * (1 - resist);
-                this.takeDamage(dmg);
+
+                // Directly subtract HP (do not pass through takeDamage which applies the global 0.25 easy-mode scaling).
+                this.playerHealth -= dmg;
+
+                // Visual / HUD update
+                if (this.healthBar) this.healthBar.style.width = (Math.max(0, this.playerHealth) / this.maxHealth * 100) + '%';
+                if (this.healthText) this.healthText.innerText = `${Math.max(0, Math.floor(this.playerHealth))} / ${this.maxHealth}`;
+
+                // Floating damage number for feedback
+                try {
+                    this.spawnDamageNumber(this.playerMesh.position.clone().add(new THREE.Vector3(0, 1.6, 0)), Math.round(dmg), false);
+                } catch (e) {}
+
+                // Check death
+                if (this.playerHealth <= 0) {
+                    this.playerHealth = 0;
+                    this.gameOver();
+                    // Break to avoid further damage queue processing after death
+                    break;
+                }
+
                 this.lavaDamageTimer -= 1.0;
             }
 
@@ -7144,8 +7477,16 @@ export class Game {
             if (this.playerBody.position.y <= this.lavaGroundY + this.playerRadius + 0.05 && this.playerBody.velocity.y < 0) {
                 this.playerBody.position.y = this.lavaGroundY + this.playerRadius + 0.05;
                 this.playerBody.velocity.y = 26;
-                // Extra impact damage on the hard lava floor
-                this.takeDamage(8);
+                // Extra impact damage on the hard lava floor - apply directly as well
+                const impactDmg = 8;
+                this.playerHealth -= impactDmg;
+                if (this.healthBar) this.healthBar.style.width = (Math.max(0, this.playerHealth) / this.maxHealth * 100) + '%';
+                if (this.healthText) this.healthText.innerText = `${Math.max(0, Math.floor(this.playerHealth))} / ${this.maxHealth}`;
+                try { this.spawnDamageNumber(this.playerMesh.position.clone().add(new THREE.Vector3(0,1.6,0)), Math.round(impactDmg), false); } catch(e){}
+                if (this.playerHealth <= 0) {
+                    this.playerHealth = 0;
+                    this.gameOver();
+                }
             }
         } else {
             this.lavaDamageTimer = 0;
@@ -7307,9 +7648,24 @@ export class Game {
                 this.particleSystem.emit(trailPos, color, 1);
             }
             
+            // ENEMY PROJECTILE COLLISION (Player Hit)
+            if (proj.isEnemyProjectile) {
+                const pDist = proj.mesh.position.distanceTo(this.playerBody.position);
+                if (pDist < 1.5) { // Generous player hitbox
+                    this.takeDamage(proj.damage);
+                    this.particleSystem.emit(this.playerBody.position, 0xff0000, 10);
+                    this.scene.remove(proj.mesh);
+                    this.projectiles.splice(i, 1);
+                    continue;
+                }
+            }
+            
             // Check enemy collision
             let hit = false;
             for (let enemy of this.enemies) {
+                // Ignore enemy projectiles hitting enemies
+                if (proj.isEnemyProjectile) continue;
+
                 // Ignore already hit enemies for this projectile
                 if (proj.hitIds.includes(enemy.id)) continue;
 
@@ -7586,20 +7942,29 @@ export class Game {
                             const spread = 0.18 * i;
                             dir.applyAxisAngle(new THREE.Vector3(0,1,0), spread);
 
-                            const pf = new THREE.Mesh(
-                                new THREE.ConeGeometry(0.12, 0.9, 6),
-                                new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0xaaaaaa })
-                            );
-                            pf.rotation.x = Math.PI / 2;
-                            pf.position.copy(origin);
-                            pf.position.y += 2.2;
-                            this.scene.add(pf);
+                            // Upgraded Pitchfork Volley
+                            const pfGroup = new THREE.Group();
+                            // Larger, glowing Trident shape
+                            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.5), new THREE.MeshStandardMaterial({ color: 0x888888 }));
+                            shaft.rotation.x = Math.PI/2;
+                            pfGroup.add(shaft);
+                            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+                            tip.rotation.x = Math.PI/2;
+                            tip.position.z = 1.2;
+                            pfGroup.add(tip);
+                            
+                            // Adjust height to player level so it hits
+                            pfGroup.position.copy(origin);
+                            pfGroup.position.y = playerPos.y + 0.5; // Aim at player height!
+                            pfGroup.lookAt(playerPos);
+                            
+                            this.scene.add(pfGroup);
 
                             this.projectiles.push({
-                                mesh: pf,
+                                mesh: pfGroup,
                                 velocity: dir.multiplyScalar(20),
-                                damage: 20,
-                                life: 4,
+                                damage: 40,
+                                life: 5,
                                 isEnemyProjectile: true
                             });
                         }
@@ -7821,6 +8186,7 @@ export class Game {
 
             if (effectiveDist < attackThreshold && enemy.attackCooldown <= 0 && enemy.type !== 'spider' && enemy.type !== 'bandit') {
                 let baseDmg = 8 + this.level * 0.6; // toned down overall enemy melee
+                // Ghost Damage scaling
                 if (enemy.type === 'ghost_default') {
                     // Ghosts do very low damage now to avoid insta-kills in early overtime
                     baseDmg = 4 + this.level * 0.25;
@@ -7914,6 +8280,14 @@ export class Game {
                 // In Survival mode, sync win
                 if (this.gameMode === 'SURVIVAL' && this.room) {
                     this.room.send({ type: 'boss_defeated' });
+                }
+                
+                // TNS: Instant Win on boss death
+                if (this.gameMode === 'TNS') {
+                    this.showToast("SCRIPTED VICTORY!");
+                    setTimeout(() => this.winGame(), 2000);
+                    this.bossEnemy = null;
+                    return;
                 }
                 
                 // Activate the portal visuals
@@ -9352,13 +9726,23 @@ export class Game {
     }
 
     knightSlash() {
+        // Determine weapon stats based on available weapon levels
+        const swordLvl = this.weaponLevels['KNIGHT_SWORD'] || 0;
+        const gigaLvl = this.weaponLevels['GIGA_SWORD'] || 0;
+        
+        // Use the stronger sword if both exist (rare case)
+        const isGiga = gigaLvl > 0 && (gigaLvl >= swordLvl || this.characterKey === 'SIR_CHAD');
+        const level = isGiga ? gigaLvl : Math.max(1, swordLvl);
+        
+        // Cooldown improves slightly with level
+        const baseCD = isGiga ? 0.65 : 0.5;
         if (this.knightSlashCooldown > 0) return;
-        this.knightSlashCooldown = 0.5;
+        this.knightSlashCooldown = Math.max(0.25, baseCD - level * 0.02);
 
         const origin = this.playerMesh.position.clone();
         this.spawnSlash(origin);
 
-        // Swing sword forward
+        // Swing sword forward if model exists
         if (this.playerSword) {
             this.playerSword.rotation.z = -0.8;
             setTimeout(() => {
@@ -9369,22 +9753,31 @@ export class Game {
         const forward = new THREE.Vector3(0, 0, -1)
             .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraRotation);
 
+        const baseRange = isGiga ? 7.0 : 5.0;
+        const range = baseRange + level * 0.3;
+        const damageMult = isGiga ? 5.0 : 3.0;
+        const dmg = damageMult * (this.stats.damage || 1) * level;
+
         for (let enemy of this.enemies) {
             const toEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, origin);
             const dist = toEnemy.length();
-            // Increased range from 3.2 to 5.0
-            if (dist > 5.0) continue;
+            if (dist > range) continue;
             toEnemy.normalize();
             const dot = forward.dot(toEnemy);
-            // Slightly wider angle
             if (dot > 0.3) {
-                this.damageEnemy(enemy, 3.0 * (this.stats.damage || 1));
+                this.damageEnemy(enemy, dmg);
+                // Visual hit
+                this.particleSystem.emit(enemy.mesh.position, 0xffffff, 5);
             }
         }
+        
+        // Play sound
+        this.playSynth('slice', isGiga ? 0.5 : 1.0, 0.5);
     }
 
     throwBone() {
         if (this.enemies.length === 0) return;
+        const level = this.weaponLevels['BONE'] || 1;
 
         const playerPos = new THREE.Vector3().copy(this.playerBody.position);
         let nearest = null;
@@ -9410,13 +9803,17 @@ export class Game {
         bone.position.y += 1;
         this.scene.add(bone);
 
+        const bounces = 2 + Math.floor(level / 2);
+        const dmg = 1.1 * (this.stats.damage || 1) * level;
+        const life = 0.8 + level * 0.1;
+
         this.projectiles.push({
             mesh: bone,
             velocity: dir.multiplyScalar(30),
-            damage: 1.1 * (this.stats.damage || 1),
-            life: 0.8, // Shortened life per request
+            damage: dmg,
+            life: life,
             isBone: true,
-            bouncesLeft: 2
+            bouncesLeft: bounces
         });
 
         this.playSound('bonk', 1.2, 0.3);
@@ -10112,11 +10509,18 @@ export class Game {
                 }
             });
 
-            // Character auras
+            // Character auras (Upgraded)
             if (this.characterKey === 'GIGACHAD' && this.characterConfig) {
-                const radius = (this.characterConfig.auraRadius || 3) * (this.stats.areaMult || 1);
-                // Buffed GigaChad Aura: 2.5x base damage multiplier to make it actually hurt
-                const dps = (this.characterConfig.auraDps || 10) * (this.stats.damage || 1) * 2.5;
+                const level = this.weaponLevels['CHAD_AURA'] || 1;
+                const radius = (this.characterConfig.auraRadius || 3) * (this.stats.areaMult || 1) * (1 + level * 0.2);
+                const dps = (this.characterConfig.auraDps || 10) * (this.stats.damage || 1) * 2.5 * level;
+                
+                // Visual update
+                if (!this.auraVisuals['CHAD_AURA']) {
+                    this.updateAuraVisual('CHAD_AURA', 0xffaa00);
+                }
+                this.updateAuraScale('CHAD_AURA', radius);
+
                 const origin = new THREE.Vector3().copy(this.playerBody.position);
                 for (let enemy of this.enemies) {
                     const dist = origin.distanceTo(enemy.mesh.position);
@@ -10143,6 +10547,11 @@ export class Game {
                                 // Pulse particles
                                 const scale = 1 + Math.sin(this.gameTime * 5 + p.userData.phase) * 0.3;
                                 p.scale.setScalar(scale);
+                            });
+                        }
+                        if (c.userData.isBeacon) {
+                            c.children.forEach(o => {
+                                o.rotation.y += dt * (o.userData.speed || 1);
                             });
                         }
                     });
@@ -10240,6 +10649,10 @@ export class Game {
                 this.autoAttack();
                 this.autoAttackTimer = 0;
             }
+
+            // Click handling covers manual slash, but if a ranged character picks up a sword,
+            // we should allow manual slashing via click. The mousedown listener in createPlayer
+            // handles this by calling knightSlash().
             
             // Other weapons
             this.updateWeapons(dt);
@@ -10350,6 +10763,12 @@ export class Game {
             }
 
             // Main Boss spawning near portal if close
+            // TNS Tier 4: Boss spawns immediately (handled below) or by proximity if we want.
+            // Let's force spawn Barkvader in TNS Tier 4 if not present
+            if (this.gameMode === 'TNS' && this.tnsTier === 4 && !this.bossEnemy && !this.bossPortalActivated) {
+                 this.createBoss(true); // Barkvader
+            }
+            
             if (!this.bossEnemy && this.bossPortal && !this.bossPortalActivated) {
                 const distToPortal = new THREE.Vector3().copy(this.playerBody.position).distanceTo(this.bossPortal.position);
                 if (distToPortal < 15) {
