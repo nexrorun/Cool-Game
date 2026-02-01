@@ -1798,12 +1798,20 @@ window.addEventListener('DOMContentLoaded', () => {
     async function loadSound(url) {
         if(soundCache[url]) return soundCache[url];
         try {
-            const res = await fetch(url);
+            const encodedUrl = encodeURI(url);
+            const res = await fetch(encodedUrl);
+            if (!res.ok) {
+                console.error(`Failed to load sound ${url}: ${res.status} ${res.statusText}`);
+                return null;
+            }
             const buff = await res.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(buff);
             soundCache[url] = audioBuffer;
             return audioBuffer;
-        } catch(e) { console.error("Audio load error", url); }
+        } catch(e) {
+            console.error(`Error loading sound ${url}:`, e);
+            return null;
+        }
     }
 
     // Preload themes
@@ -2219,21 +2227,23 @@ window.addEventListener('DOMContentLoaded', () => {
             this.targetCameraLook = this.overviewLook.clone();
             this.cameraTransitionSpeed = 0;
 
-            // Texture Loading
+            // Texture Loading - with error callbacks for debugging
             const texLoader = new THREE.TextureLoader();
-            this.grassTex = texLoader.load('/a-texture-for-grass.jpg');
-            this.grassTex.wrapS = THREE.RepeatWrapping; 
+            const onTexError = (url) => (err) => console.error(`Failed to load texture ${url}:`, err);
+
+            this.grassTex = texLoader.load(encodeURI('/a-texture-for-grass.jpg'), undefined, undefined, onTexError('/a-texture-for-grass.jpg'));
+            this.grassTex.wrapS = THREE.RepeatWrapping;
             this.grassTex.wrapT = THREE.RepeatWrapping;
             this.grassTex.repeat.set(4, 4);
             this.grassTex.colorSpace = THREE.SRGBColorSpace;
 
-            this.sideTex = texLoader.load('/side.jpg');
+            this.sideTex = texLoader.load(encodeURI('/side.jpg'), undefined, undefined, onTexError('/side.jpg'));
             this.sideTex.wrapS = THREE.RepeatWrapping;
             this.sideTex.wrapT = THREE.RepeatWrapping;
             this.sideTex.repeat.set(2, 1);
             this.sideTex.colorSpace = THREE.SRGBColorSpace;
-            
-            this.rockTex = texLoader.load('/texture-for-grey-rock.jpg');
+
+            this.rockTex = texLoader.load(encodeURI('/texture-for-grey-rock.jpg'), undefined, undefined, onTexError('/texture-for-grey-rock.jpg'));
             this.rockTex.wrapS = THREE.RepeatWrapping;
             this.rockTex.wrapT = THREE.RepeatWrapping;
             this.rockTex.colorSpace = THREE.SRGBColorSpace;
