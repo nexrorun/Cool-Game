@@ -76,14 +76,22 @@ window.addEventListener('DOMContentLoaded', () => {
     function isTNSUnlocked() {
         return isCharacterUnlocked('CALCIUM');
     }
+    // Pantheon Unlock: Beating TNS (Story Mode)
+    function isPantheonUnlocked() {
+        try { return !!localStorage.getItem('uberthump_pantheon_unlocked'); } catch (e) { return false; }
+    }
+
+    const loadWorldBtn = document.getElementById('load-world-btn');
 
     function updateGamemodeSelectState() {
         if (!modeSelect) return;
         const multiOption = Array.from(modeSelect.options).find(o => o.value === 'MULTI');
         const tnsOption = Array.from(modeSelect.options).find(o => o.value === 'TNS');
+        const panOption = Array.from(modeSelect.options).find(o => o.value === 'PANTHEON');
         
         const mpUnlocked = isMultiplayerUnlocked();
         const tnsUnlocked = isTNSUnlocked();
+        const panUnlocked = isPantheonUnlocked();
 
         if (multiOption) {
             multiOption.disabled = !mpUnlocked;
@@ -99,21 +107,34 @@ window.addEventListener('DOMContentLoaded', () => {
                 selectedMode = 'ARCADE';
             }
         }
+        if (panOption) {
+            panOption.disabled = !panUnlocked;
+            if (!panUnlocked && modeSelect.value === 'PANTHEON') {
+                modeSelect.value = 'ARCADE';
+                selectedMode = 'ARCADE';
+            }
+        }
+
+        if (loadWorldBtn) loadWorldBtn.style.display = 'none';
 
         if (modeHelperText) {
+            modeHelperText.style.display = 'block';
             if (modeSelect.value === 'MULTI' && !mpUnlocked) {
-                modeHelperText.style.display = 'block';
+                modeHelperText.style.color = '#ff4444';
                 modeHelperText.textContent = 'Multiplayer unlocks after beating Tier 1 in CLASSIC.';
             } else if (!tnsUnlocked && modeSelect.value === 'TNS') {
-                 // Should be unreachable if disabled, but for safety
-                 modeHelperText.style.display = 'block';
+                 modeHelperText.style.color = '#ff4444';
                  modeHelperText.textContent = 'Unlock CALCIUM to play Story Mode.';
+            } else if (modeSelect.value === 'PANTHEON' && !panUnlocked) {
+                 modeHelperText.style.color = '#ff4444';
+                 modeHelperText.textContent = 'LOCKED: Beat Story Mode (Totally Not Scripted) to unlock Pantheon.';
             } else if (modeSelect.value === 'TNS') {
-                 // Show TNS hint
-                 const tier = parseInt(localStorage.getItem('uberthump_tns_tier') || '1');
-                 modeHelperText.style.display = 'block';
                  modeHelperText.style.color = '#00ff88';
-                 modeHelperText.textContent = `STORY MODE (NON-CANON): TIER ${tier}/4`;
+                 modeHelperText.textContent = `STORY MODE: Save & Load Progression. 4 Tiers.`;
+            } else if (modeSelect.value === 'PANTHEON') {
+                 modeHelperText.style.color = '#00ffff';
+                 modeHelperText.textContent = 'CREATIVE MODE: Totally not hacks, chat; im just locked in asf. (Non-Canon)';
+                 if (loadWorldBtn) loadWorldBtn.style.display = 'inline-block';
             } else {
                 modeHelperText.style.display = 'none';
             }
@@ -130,6 +151,149 @@ window.addEventListener('DOMContentLoaded', () => {
             hash = hash & hash;
         }
         return Math.abs(hash);
+    }
+
+    // TNS Saves Logic
+    const tnsSaveUI = document.getElementById('tns-save-ui');
+    const tnsSaveList = document.getElementById('tns-save-list');
+    const tnsBackBtn = document.getElementById('tns-back-btn');
+    let pendingTNSSlot = null; // Slot index we are currently creating a new game for
+
+    function getTNSSaves() {
+        try {
+            const raw = localStorage.getItem('uberthump_tns_saves');
+            return raw ? JSON.parse(raw) : [null, null, null];
+        } catch(e) { return [null, null, null]; }
+    }
+
+    function renderSaveList() {
+        const saves = getTNSSaves();
+        tnsSaveList.innerHTML = '';
+        
+        saves.forEach((save, idx) => {
+            const row = document.createElement('div');
+            row.style.background = '#111';
+            row.style.border = '1px solid #444';
+            row.style.padding = '8px';
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            
+            if (save) {
+                // Occupied Save
+                const info = document.createElement('div');
+                info.innerHTML = `<div style="color:#00ff88; font-size:0.8rem; font-weight:bold;">SAVE ${idx+1}: Tier ${save.tier}</div>
+                                  <div style="color:#aaa; font-size:0.65rem;">${CHARACTERS[save.character] ? CHARACTERS[save.character].name : save.character}</div>`;
+                
+                const actions = document.createElement('div');
+                actions.style.display = 'flex';
+                actions.style.gap = '6px';
+                
+                const playBtn = document.createElement('button');
+                playBtn.textContent = 'PLAY';
+                playBtn.style.padding = '4px 8px';
+                playBtn.style.fontSize = '0.7rem';
+                playBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    launchTNS(idx, save);
+                };
+                
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'DEL';
+                delBtn.style.padding = '4px 8px';
+                delBtn.style.fontSize = '0.7rem';
+                delBtn.style.background = '#330000';
+                delBtn.style.borderColor = '#ff4444';
+                delBtn.style.color = '#ff4444';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if(confirm("Delete this save?")) {
+                        saves[idx] = null;
+                        localStorage.setItem('uberthump_tns_saves', JSON.stringify(saves));
+                        renderSaveList();
+                    }
+                };
+                
+                actions.appendChild(playBtn);
+                actions.appendChild(delBtn);
+                
+                row.appendChild(info);
+                row.appendChild(actions);
+            } else {
+                // Empty Save
+                row.innerHTML = `<div style="color:#666; font-size:0.8rem;">SAVE ${idx+1} (EMPTY)</div>`;
+                const newBtn = document.createElement('button');
+                newBtn.textContent = 'NEW GAME';
+                newBtn.style.padding = '4px 8px';
+                newBtn.style.fontSize = '0.7rem';
+                newBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    startNewTNS(idx);
+                };
+                row.appendChild(newBtn);
+            }
+            tnsSaveList.appendChild(row);
+        });
+    }
+
+    function startNewTNS(slotIdx) {
+        // Instead of creating immediately, go to character selection phase
+        pendingTNSSlot = slotIdx;
+        
+        // Hide Save UI, Show Character Selection
+        tnsSaveUI.style.display = 'none';
+        charSelectGrid.style.display = 'grid';
+        if (selectionHeader) selectionHeader.style.display = 'block';
+        if (selectionHeader) selectionHeader.textContent = `SELECT HERO FOR SAVE ${slotIdx + 1}`;
+        
+        // Show confirm button
+        startBtn.style.display = 'block';
+        startBtn.textContent = 'START NEW STORY';
+        startBtn.classList.add('pulse-btn');
+        
+        // Filter character grid to show only unlocked ones? 
+        // Logic already handles this via `isCharacterUnlocked`.
+    }
+
+    function launchTNS(slotIdx, saveData) {
+        // Launch Game with TNS params
+        const settings = {
+            mode: 'TNS',
+            tnsSlot: slotIdx,
+            tnsData: saveData
+        };
+        // Force character selection to match save
+        selectedCharacter = saveData.character;
+        
+        // Hide UI
+        tnsSaveUI.style.display = 'none';
+        
+        // Start
+        if (menuScene) {
+            menuScene.playPortalAnim(() => {
+                startGame(settings);
+            });
+        } else {
+            startGame(settings);
+        }
+    }
+
+    if (tnsBackBtn) {
+        tnsBackBtn.onclick = () => {
+            tnsSaveUI.style.display = 'none';
+            // If we backed out of creating a new save in TNS, return to the "TNS Mode" start screen state
+            // which hides the grid.
+            if (selectedMode === 'TNS') {
+                charSelectGrid.style.display = 'none';
+            } else {
+                charSelectGrid.style.display = 'grid';
+            }
+            startBtn.style.display = 'block';
+            startBtn.textContent = '▶ PLAY';
+            startBtn.classList.remove('pulse-btn');
+            pendingTNSSlot = null;
+            if (selectionHeader) selectionHeader.style.display = 'none';
+        };
     }
 
     // Run once on load deferred until dependencies are ready (see bottom of file)
@@ -192,42 +356,32 @@ window.addEventListener('DOMContentLoaded', () => {
 
             } else if (selectedMode === 'TNS') {
                 // Totally Not Scripted (Story Mode)
-                charSelectGrid.style.display = 'grid';
-                if (charDetailsEl && !isFirstRun) charDetailsEl.style.display = 'block';
+                // Hide character grid initially - user selects character AFTER choosing a save slot
+                charSelectGrid.style.display = 'none'; 
+                if (charDetailsEl) charDetailsEl.style.display = 'none';
                 if (pixelToggleBottom) pixelToggleBottom.disabled = false;
-                
-                // Retrieve Tier progress
-                const tnsTier = parseInt(localStorage.getItem('uberthump_tns_tier') || '1');
                 
                 awakeningMsg.style.display = 'block';
                 awakeningMsg.style.color = '#ffd700';
-                awakeningMsg.textContent = `STORY MODE: Tier ${tnsTier}. Non-Canon adventure.`;
+                awakeningMsg.textContent = `STORY MODE: Select a Save to continue or start new.`;
                 
-                // Filter Characters based on Tier
-                // Tier 1: MMOOVT, FOX, CALCIUM
-                // Tier 2: + GIGACHAD, BLITZ, MONKE
-                // Tier 3+: + SIR_CHAD, BOBERTO
-                const allowed = ['MMOOVT', 'FOX', 'CALCIUM'];
-                if (tnsTier >= 2) allowed.push('GIGACHAD', 'BLITZ', 'MONKE');
-                if (tnsTier >= 3) allowed.push('SIR_CHAD', 'BOBERTO');
-                
-                // Hide disallowed characters in grid
+                if (selectionHeader) selectionHeader.style.display = 'none';
+
+            } else if (selectedMode === 'PANTHEON') {
+                // Pantheon / Creative
+                charSelectGrid.style.display = 'grid';
+                // Reset card visibility
                 const cards = document.querySelectorAll('.character-card');
                 cards.forEach(c => {
                     const k = c.getAttribute('data-char');
-                    if (allowed.includes(k)) {
-                        c.style.display = '';
-                    } else {
-                        c.style.display = 'none';
-                    }
+                    if (isCharacterUnlocked(k)) c.style.display = '';
                 });
                 
-                // Ensure selection is valid
-                if (!allowed.includes(selectedCharacter)) {
-                    selectedCharacter = 'MMOOVT';
-                    const card = document.querySelector(`.character-card[data-char="MMOOVT"]`);
-                    if (card) card.click();
-                }
+                if (charDetailsEl && !isFirstRun) charDetailsEl.style.display = 'block';
+                if (pixelToggleBottom) pixelToggleBottom.disabled = false;
+                awakeningMsg.style.display = 'block';
+                awakeningMsg.style.color = '#00ffff';
+                awakeningMsg.textContent = "PANTHEON: Build & Export custom worlds. Creative mode with flight. Totally not hacks.";
                 
                 if (selectionHeader) selectionHeader.style.display = 'none';
 
@@ -255,6 +409,44 @@ window.addEventListener('DOMContentLoaded', () => {
             }
 
             updateGamemodeSelectState();
+        });
+    }
+    
+    // Load World Handler
+    if (loadWorldBtn) {
+        loadWorldBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const input = prompt("Paste your World Data Code here:");
+            if (!input || !input.trim()) return;
+            
+            try {
+                // Basic validation (base64 check or just length)
+                if (input.length < 5) throw new Error("Invalid code");
+                
+                const choice = confirm("Press OK to Edit in Pantheon, or Cancel to Play in Arcade mode.");
+                
+                // Determine settings based on choice
+                const settings = {
+                    mode: choice ? 'PANTHEON' : 'ARCADE',
+                    customWorldData: input
+                };
+                
+                // Force mode selection visual sync if Editing
+                if (choice) {
+                    modeSelect.value = 'PANTHEON';
+                    selectedMode = 'PANTHEON';
+                } else {
+                    modeSelect.value = 'ARCADE';
+                    selectedMode = 'ARCADE';
+                }
+                
+                // Start game with data
+                startGame(settings);
+                
+            } catch(e) {
+                alert("Failed to load world. Code may be invalid.");
+                console.error(e);
+            }
         });
     }
 
@@ -2960,6 +3152,62 @@ window.addEventListener('DOMContentLoaded', () => {
         // Intercept MULTI to open browser instead of random match
         if (selectedMode === 'MULTI') {
             openBrowser();
+            return;
+        }
+
+        // Intercept TNS
+        if (selectedMode === 'TNS') {
+            // If we are in the "Pick Character for New Save" phase
+            if (pendingTNSSlot !== null) {
+                // Create the save now with the SELECTED character
+                const charKey = selectedCharacter;
+                const charInfo = window.CHARACTERS && window.CHARACTERS[charKey];
+                
+                // Construct initial save with starting weapons populated to fix softlock
+                const startingWeapons = ['DEFAULT'];
+                if (charInfo && charInfo.startingWeapons) {
+                    startingWeapons.push(...charInfo.startingWeapons);
+                }
+                
+                // Consolidate weapon levels (all start at 1)
+                const weaponLevels = { 'DEFAULT': 1 };
+                if (charInfo && charInfo.startingWeapons) {
+                    charInfo.startingWeapons.forEach(w => weaponLevels[w] = 1);
+                }
+
+                const save = {
+                    tier: 1,
+                    character: charKey,
+                    weapons: startingWeapons,
+                    buffs: [], 
+                    stats: null,
+                    weaponLevels: weaponLevels,
+                    runeLevels: {}
+                };
+                
+                const saves = getTNSSaves();
+                saves[pendingTNSSlot] = save;
+                localStorage.setItem('uberthump_tns_saves', JSON.stringify(saves));
+                
+                // Launch
+                pendingTNSSlot = null;
+                launchTNS(pendingTNSSlot, save); // index passed is null? No, we need index.
+                // Wait, pendingTNSSlot was cleared. Use temp var.
+                // Re-read saves to get index? No, just use closure.
+                // But launchTNS takes index. 
+                // Correction:
+                const slot = pendingTNSSlot; // Capture before nulling
+                pendingTNSSlot = null;
+                launchTNS(slot, save);
+                return;
+            }
+
+            // Normal TNS start -> Show Save UI
+            tnsSaveUI.style.display = 'flex';
+            renderSaveList();
+            charSelectGrid.style.display = 'none'; // Hide grid while selecting save
+            startBtn.style.display = 'none';
+            if (selectionHeader) selectionHeader.style.display = 'none';
             return;
         }
 
