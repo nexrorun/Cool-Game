@@ -1,6 +1,48 @@
 import { Game } from './game/game.js';
 import * as THREE from 'three';
 
+// Fallback color texture generator
+function createColorTexture(color, width = 64, height = 64) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+}
+
+// Load texture with fallback color - returns fallback immediately, swaps in real texture on success
+function loadTextureWithFallback(url, fallbackColor, repeatX = 1, repeatY = 1) {
+    // Start with fallback texture
+    const fallback = createColorTexture(fallbackColor);
+    fallback.repeat.set(repeatX, repeatY);
+    fallback.fallbackColor = fallbackColor;
+
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+        encodeURI(url),
+        // onLoad - texture loaded successfully, copy image to fallback
+        (loadedTex) => {
+            console.log(`Texture loaded: ${url}`);
+            fallback.image = loadedTex.image;
+            fallback.needsUpdate = true;
+        },
+        // onProgress
+        undefined,
+        // onError - keep fallback
+        (err) => {
+            console.warn(`Failed to load texture ${url}, using fallback color ${fallbackColor}`);
+        }
+    );
+
+    return fallback;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     const enterGameBtn = document.getElementById('enter-game-btn');
     const startBtn = document.getElementById('start-btn');
@@ -2227,26 +2269,11 @@ window.addEventListener('DOMContentLoaded', () => {
             this.targetCameraLook = this.overviewLook.clone();
             this.cameraTransitionSpeed = 0;
 
-            // Texture Loading - with error callbacks for debugging
-            const texLoader = new THREE.TextureLoader();
-            const onTexError = (url) => (err) => console.error(`Failed to load texture ${url}:`, err);
-
-            this.grassTex = texLoader.load(encodeURI('/a-texture-for-grass.jpg'), undefined, undefined, onTexError('/a-texture-for-grass.jpg'));
-            this.grassTex.wrapS = THREE.RepeatWrapping;
-            this.grassTex.wrapT = THREE.RepeatWrapping;
-            this.grassTex.repeat.set(4, 4);
-            this.grassTex.colorSpace = THREE.SRGBColorSpace;
-
-            this.sideTex = texLoader.load(encodeURI('/side.jpg'), undefined, undefined, onTexError('/side.jpg'));
-            this.sideTex.wrapS = THREE.RepeatWrapping;
-            this.sideTex.wrapT = THREE.RepeatWrapping;
-            this.sideTex.repeat.set(2, 1);
-            this.sideTex.colorSpace = THREE.SRGBColorSpace;
-
-            this.rockTex = texLoader.load(encodeURI('/texture-for-grey-rock.jpg'), undefined, undefined, onTexError('/texture-for-grey-rock.jpg'));
-            this.rockTex.wrapS = THREE.RepeatWrapping;
-            this.rockTex.wrapT = THREE.RepeatWrapping;
-            this.rockTex.colorSpace = THREE.SRGBColorSpace;
+            // Texture Loading - with color fallbacks if loading fails
+            // Grass = green, Side = brown, Rock = grey
+            this.grassTex = loadTextureWithFallback('/a-texture-for-grass.jpg', '#228B22', 4, 4);
+            this.sideTex = loadTextureWithFallback('/side.jpg', '#8B4513', 2, 1);
+            this.rockTex = loadTextureWithFallback('/texture-for-grey-rock.jpg', '#808080', 6, 6);
 
             // Pixelation Setup
             this.pixelRatio = 0.3;
