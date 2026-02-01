@@ -7,31 +7,148 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import nipplejs from 'nipplejs';
-import { ParticleSystem, XPOrb, randomRange, SeededRandom } from '../utils/game.js';
+import { ParticleSystem, XPOrb, randomRange, SeededRandom } from './utils.js';
 
-// Import centralized configuration
-import {
-    RARITIES,
-    WEAPONS,
-    RUNES,
-    UPGRADES,
-    CHARACTERS,
-    AURA_WEAPONS,
-    PHYSICS,
-    CAMERA,
-    RENDERING,
-    PROGRESSION,
-    BGM_TRACKS
-} from './config.js';
+const RARITIES = {
 
-// Import event system for decoupled communication
-import { gameEvents, GameEvents } from './EventEmitter.js';
+    COMMON: { name: "Common", color: 0xaaaaaa, mult: 1.0, chance: 0.50 },
+    UNCOMMON: { name: "Uncommon", color: 0x00ff00, mult: 1.2, chance: 0.30 },
+    RARE: { name: "Rare", color: 0x0088ff, mult: 1.5, chance: 0.15 },
+    ULTRA_RARE: { name: "Ultra Rare", color: 0xaa00ff, mult: 2.0, chance: 0.04 },
+    LEGENDARY: { name: "Legendary", color: 0xffd700, mult: 3.0, chance: 0.01 }
+};
 
-// Export constants for backward compatibility
-export { RARITIES, WEAPONS, RUNES, UPGRADES, CHARACTERS, AURA_WEAPONS };
+const AURA_WEAPONS = ['ICE_AURA', 'SPIKE_RING', 'POISON_MIST'];
 
-// Global assignment for legacy code (menu system uses this)
+const WEAPONS = {
+    LIGHTNING:   { name: "Lightning Rod", desc: "Auto-zaps nearby enemies", type: 'weapon' },
+    GHOST:       { name: "Being Ghosted", desc: "Spawns friendly ghost bombers", type: 'weapon' },
+    FIREBALL:    { name: "Fireball", desc: "Shoots explosive fireballs", type: 'weapon' },
+    SWORD:       { name: "Spinning Blade", desc: "Orbiting blade damages enemies", type: 'weapon' },
+    MISSILE:     { name: "Slutty Missiles", desc: "Launches up, then aggressively seeks enemies", type: 'weapon' },
+
+    // New extra weapons
+    SPIKE_RING:  { name: "Spike Ring", desc: "Pulsing ring of spikes around you", type: 'weapon' },
+    POISON_MIST: { name: "Poison Mist", desc: "Slowly damages nearby enemies", type: 'weapon' },
+    ICE_AURA:    { name: "Ice Aura", desc: "Chills and slows enemies close to you", type: 'weapon' },
+    MINI_TURRET: { name: "Mini Turret", desc: "Little bot that auto-shoots nearby foes", type: 'weapon' },
+    NOVA_BLAST:  { name: "Nova Blast", desc: "Occasional radial explosion from your position", type: 'weapon' },
+    BANANERANG:  { name: "Bananerang", desc: "Thrown banana that returns to you", type: 'weapon' },
+    SUMMON_GHOST: { name: "Spooky Bois", desc: "Summons friendly ghosts to attack enemies", type: 'weapon' },
+    
+    // Intrinsic Weapons (Made upgradeable)
+    KNIGHT_SWORD: { name: "Knight Sword", desc: "Standard slash. Upgrades size & damage.", type: 'weapon' },
+    BONE: { name: "Bone Throw", desc: "Ricocheting bone. Upgrades bounces & damage.", type: 'weapon' },
+    CHAD_AURA: { name: "Chad Aura", desc: "Damage field. Upgrades radius & DPS.", type: 'weapon' },
+    GIGA_SWORD: { name: "Giga Sword", desc: "Massive slash. Upgrades area & power.", type: 'weapon' }
+};
+
+const RUNES = {
+    LANKY_HANDS: { name: "Lanky Hands", desc: "Increase pickup range", type: 'rune', stat: 'pickupRange', mult: 1.4 },
+    SPEED_BOOST: { name: "Speed Rune", desc: "Move faster", type: 'rune', stat: 'moveSpeed', mult: 1.15 },
+    MAX_HEALTH:  { name: "Health Rune", desc: "+20 max health", type: 'rune', stat: 'maxHealth', add: 20 },
+    FIRE_RATE:   { name: "Haste Rune", desc: "Attack faster", type: 'rune', stat: 'fireRate', mult: 1.15 },
+    DAMAGE:      { name: "Power Rune", desc: "More damage", type: 'rune', stat: 'damage', mult: 1.3 },
+
+    // New extra runes (small buffs)
+    ARMOR_PLATE: { name: "Armor Plate", desc: "Take less damage from hits", type: 'rune', stat: 'armor', add: 0.06 },
+    REGEN_BONE:  { name: "Regen Bone", desc: "Slowly regenerate health over time", type: 'rune', stat: 'regen', add: 1.1 },
+    LAVA_BOOTS:  { name: "Lava Boots", desc: "Reduce damage taken from lava", type: 'rune', stat: 'lavaResist', add: 0.2 },
+    WISDOM:      { name: "Wisdom Rune", desc: "Gain more XP from pickups", type: 'rune', stat: 'xpGain', mult: 1.2 },
+    BIG_AURA:    { name: "Big Aura", desc: "Increase area effects like aura and spikes", type: 'rune', stat: 'areaMult', mult: 1.2 }
+};
+
+const UPGRADES = {
+    EXTRA_PROJECTILE: { name: "Multishot", baseDesc: "+{VAL} projectile per attack", type: 'upgrade', stat: 'extraProjectiles', add: 1 },
+    LUCK: { name: "Bling Bling Chain", baseDesc: "+{VAL}% rarity chance", type: 'upgrade', stat: 'luck', add: 0.2, percent: true },
+    VAMPIRISM: { name: "Vampirism", baseDesc: "Heal {VAL} HP per kill", type: 'upgrade', stat: 'vampirism', add: 1 },
+    PIERCING: { name: "Piercing Shots", baseDesc: "Projectiles pierce {VAL} enemies", type: 'upgrade', stat: 'piercing', add: 1 },
+    CRITICAL: { name: "Critical Strike", baseDesc: "+{VAL}% crit chance", type: 'upgrade', stat: 'critChance', add: 0.25, percent: true }
+};
+
+const CHARACTERS = {
+    FOX: {
+        name: 'Fox',
+        maxHealth: 80,
+        moveSpeed: 1.4,
+        baseDamage: 0.7,
+        fireRate: 1.1,
+        startingWeapons: ['FIREBALL'],
+        description: 'Fast, fragile caster with explosive fireballs.'
+    },
+    MMOOVT: {
+        name: 'Mr. Mc. Oofy Otterson Vangough III',
+        maxHealth: 190,
+        moveSpeed: 0.9,
+        baseDamage: 1.0,
+        fireRate: 0.7,
+        startingWeapons: ['KNIGHT_SWORD'],
+        meleeOnly: true,
+        description: 'Tanky knight with manual sword slashes.'
+    },
+    CALCIUM: {
+        name: 'Calcium',
+        maxHealth: 110,
+        moveSpeed: 1.3,
+        baseDamage: 0.9,
+        fireRate: 0.9,
+        startingWeapons: ['BONE'],
+        boneRicochet: true,
+        description: 'Speed-building skater skeleton with ricocheting bones.'
+    },
+    GIGACHAD: {
+        name: 'GigaChad',
+        maxHealth: 300,
+        moveSpeed: 0.75,
+        baseDamage: 0.8,
+        fireRate: 0.6,
+        startingWeapons: ['CHAD_AURA'],
+        // Slightly smaller, much lower-DPS aura so he no longer one-shots waves
+        auraRadius: 3.5,
+        auraDps: 3.5,
+        flexCooldown: 15,
+        description: 'Mega tank with damage aura and flex-based damage ignores.'
+    },
+    BLITZ: {
+        name: 'Blitz',
+        maxHealth: 140,
+        moveSpeed: 1.0,
+        baseDamage: 0.9,
+        fireRate: 1.15,
+        startingWeapons: ['LIGHTNING'],
+        description: 'Balanced storm bot with innate lightning attacks.'
+    },
+    MONKE: {
+        name: 'Monke',
+        maxHealth: 130,
+        moveSpeed: 1.25,
+        baseDamage: 1.2,
+        fireRate: 1.0,
+        startingWeapons: ['BANANERANG'],
+        description: 'Returns to monke. Throws bananas and has high agility.'
+    },
+    SIR_CHAD: {
+        name: 'Sir Chadsirwellsirchadsirchadwellwell',
+        maxHealth: 800,
+        moveSpeed: 0.85,
+        baseDamage: 1.5,
+        fireRate: 0.65,
+        startingWeapons: ['GIGA_SWORD'], // Uses manual sword
+        meleeOnly: true,
+        description: 'God Tank. Massive health and heavy damage.'
+    },
+    BOBERTO: {
+        name: 'Boberto',
+        maxHealth: 90,
+        moveSpeed: 1.0,
+        baseDamage: 1.0,
+        fireRate: 1.0,
+        startingWeapons: ['SUMMON_GHOST'],
+        description: 'Summons friendly ghosts. Cannot attack directly.'
+    }
+};
+
+
 window.CHARACTERS = CHARACTERS;
 
 export class Game {
@@ -40,6 +157,7 @@ export class Game {
         this.debugMode = false; // Dev setting for logs
         this.room = room; // WebsimSocket instance
         this.lobbySettings = lobbySettings || {}; // New settings object
+        this.customWorldData = lobbySettings ? lobbySettings.customWorldData : null;
         this.rng = seed ? new SeededRandom(seed) : null;
         
         // Multiplayer State
@@ -236,10 +354,12 @@ export class Game {
         this.hasEvolved = false;
         this.graves = [];
         this.tnsTier = 1;
-        if (this.gameMode === 'TNS') {
-            try {
-                this.tnsTier = parseInt(localStorage.getItem('uberthump_tns_tier') || '1');
-            } catch(e) {}
+        
+        // TNS Save Handling
+        if (this.gameMode === 'TNS' && this.lobbySettings.tnsData) {
+            this.tnsTier = this.lobbySettings.tnsData.tier || 1;
+            this.tier = this.tnsTier; // Ensure global scaling matches story tier
+            // Character already set via constructor arg from main.js
         }
 
         // Player physical radius (used for grounding and collider size)
@@ -250,6 +370,12 @@ export class Game {
         this.spawnRateMultiplier = this.lobbySettings.spawnMult || 1.0;
         this.lootMultiplier = this.lobbySettings.lootMult || 1.0;
         this.infiniteSlots = !!this.lobbySettings.infiniteSlots;
+        
+        // Pantheon State
+        this.placedObjects = []; // {type, x, y, z, rotation, data}
+        this.activeTool = null; // Current selected spawn tool
+        this.isFlying = false;
+        this.lastSpaceTime = 0;
         
         // Ensure intrinsic weapons are in inventory logic even if not added yet
         // (Handled in constructor later)
@@ -342,8 +468,15 @@ export class Game {
         // this.updateAuraOwnership(); // Deprecated check
         // Tighter build choices
         this.maxWeapons = 3;
-        this.runes = [];
         this.maxRunes = 4;
+        
+        // TNS: Expanded Inventory
+        if (this.gameMode === 'TNS') {
+            this.maxWeapons = 6;
+            this.maxRunes = 13;
+        }
+
+        this.runes = [];
         this.weaponLevels = { DEFAULT: 1 };
         this.runeLevels = {};
         
@@ -419,6 +552,7 @@ export class Game {
         this.minibossesDefeated = 0;
         this.bossPortalActivated = false;
         this.bossArena = null;
+        this.victoryTriggered = false; // Prevent win spam
 
         // Fog of War
         this.fogResolution = 512;
@@ -478,6 +612,270 @@ export class Game {
             this.healthBar.style.width = '100%';
         }
     }
+    
+    initPantheonUI() {
+        const ui = document.getElementById('pantheon-ui');
+        if (!ui) return;
+        ui.style.display = 'block';
+        
+        const menu = document.getElementById('pantheon-menu');
+        const close = document.getElementById('pan-close');
+        const tabs = document.querySelectorAll('.pan-tab');
+        const contents = document.querySelectorAll('.pan-content');
+        
+        // Toggle menu with P
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'p') {
+                if (menu.style.display === 'none') {
+                    menu.style.display = 'flex';
+                    this.isPaused = true;
+                    if (document.exitPointerLock) document.exitPointerLock();
+                } else {
+                    menu.style.display = 'none';
+                    this.isPaused = false;
+                    // re-lock? maybe on click
+                }
+            }
+        });
+        
+        close.onclick = () => {
+            menu.style.display = 'none';
+            this.isPaused = false;
+        };
+        
+        // Tabs
+        tabs.forEach(t => {
+            t.onclick = () => {
+                tabs.forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                contents.forEach(c => c.style.display = 'none');
+                document.getElementById('pan-content-' + t.dataset.tab).style.display = t.dataset.tab === 'enemies' || t.dataset.tab === 'structures' ? 'grid' : 'flex';
+            };
+        });
+        
+        // Populate Tools
+        const enemiesDiv = document.getElementById('pan-content-enemies');
+        const structDiv = document.getElementById('pan-content-structures');
+        
+        const addTool = (container, name, type, id) => {
+            const btn = document.createElement('button');
+            btn.className = 'pan-btn';
+            btn.textContent = name;
+            btn.onclick = () => {
+                this.activeTool = { type, id, name };
+                document.getElementById('pan-selected-tool').textContent = name;
+                menu.style.display = 'none';
+                this.isPaused = false;
+                this.showToast(`Equipped: ${name}`);
+            };
+            container.appendChild(btn);
+        };
+        
+        // Enemies
+        addTool(enemiesDiv, 'Skeleton', 'enemy', 'skeleton');
+        addTool(enemiesDiv, 'Ogre', 'enemy', 'ogre');
+        addTool(enemiesDiv, 'Piglin', 'enemy', 'piglin');
+        addTool(enemiesDiv, 'Zombie', 'enemy', 'zombie');
+        addTool(enemiesDiv, 'Spider', 'enemy', 'spider');
+        addTool(enemiesDiv, 'Ghost (Weak)', 'ghost', 'ghost_default');
+        addTool(enemiesDiv, 'Ghost (Deadly)', 'ghost', 'ghost_deadly');
+        addTool(enemiesDiv, 'John Pork (Mini)', 'miniboss', 'JOHN_PORK');
+        addTool(enemiesDiv, 'Karen (Mini)', 'miniboss', 'KAREN');
+        addTool(enemiesDiv, 'Bruh-nubis (Mini)', 'miniboss', 'BRUH_NUBIS');
+        addTool(enemiesDiv, 'Babybark', 'boss', 'Babybark');
+        addTool(enemiesDiv, 'Smolbark', 'boss', 'Smolbark');
+        addTool(enemiesDiv, 'Chadbark', 'boss', 'Chadbark');
+        addTool(enemiesDiv, 'Barkvader', 'boss', 'Barkvader');
+        addTool(enemiesDiv, 'Gatekeeper', 'boss', 'Gatekeeper');
+        addTool(enemiesDiv, 'Bob (Normal)', 'bob', 'BOB');
+        addTool(enemiesDiv, 'Bob (Deadly)', 'bob', 'DEADLY_BOB');
+        addTool(enemiesDiv, 'Bob (Overtime)', 'bob', 'OVERTIME_BOB');
+        
+        // Structures
+        addTool(structDiv, 'Tree', 'prop', 'tree');
+        addTool(structDiv, 'Rock', 'prop', 'rock');
+        addTool(structDiv, 'Pillar', 'prop', 'pillar');
+        addTool(structDiv, 'Ruins', 'prop', 'ruins');
+        addTool(structDiv, 'Chest', 'chest', 'chest');
+        addTool(structDiv, 'Shrine', 'shrine', 'shrine');
+        addTool(structDiv, 'Boss Portal', 'portal', 'portal');
+        addTool(structDiv, 'Platform (Small)', 'platform', 'small');
+        addTool(structDiv, 'Platform (Med)', 'platform', 'medium');
+        addTool(structDiv, 'Platform (Large)', 'platform', 'large');
+        addTool(structDiv, 'Wall (Block)', 'wall', 'wall'); // New
+        addTool(structDiv, 'Ramp (Short)', 'ramp', 'short');
+        addTool(structDiv, 'Ramp (Long)', 'ramp', 'long');
+        addTool(structDiv, 'Ramp (Steep)', 'ramp', 'steep');
+        
+        // World
+        document.getElementById('pan-export-btn').onclick = () => this.exportWorld();
+        document.getElementById('pan-clear-btn').onclick = () => {
+            if(confirm("Clear everything?")) {
+                this.clearWorld();
+                this.createWorld(); // reset to base
+                this.placedObjects = [];
+            }
+        };
+        
+        // NEW: Player Tab & Time Scale
+        document.getElementById('pan-timescale').oninput = (e) => {
+            this.timeScale = parseFloat(e.target.value);
+            document.getElementById('pan-timescale-val').innerText = this.timeScale.toFixed(1) + 'x';
+        };
+        
+        const refreshPlayerTab = () => {
+            const list = document.getElementById('pan-player-list');
+            if(!list) return;
+            list.innerHTML = '';
+            
+            // Weapons
+            this.weapons.forEach(w => {
+                const lvl = this.weaponLevels[w] || 1;
+                const d = document.createElement('div');
+                d.style.marginBottom = '4px';
+                d.innerHTML = `
+                    <span style="color:#00ffff">${w} Lv${lvl}</span>
+                    <button class="pan-mini-btn" data-act="upg_w" data-key="${w}">+</button>
+                    <button class="pan-mini-btn" data-act="rem_w" data-key="${w}">x</button>
+                `;
+                list.appendChild(d);
+            });
+            // Pantheon Mode Switch
+            const modeDiv = document.createElement('div');
+            modeDiv.style.marginBottom = '10px';
+            modeDiv.style.paddingBottom = '10px';
+            modeDiv.style.borderBottom = '1px solid #333';
+            modeDiv.innerHTML = `
+                <div style="font-size:0.8rem;color:#aaa;margin-bottom:5px;">GAME MODE</div>
+                <div style="display:flex;gap:10px;">
+                    <button class="pan-btn" id="pan-mode-creative" style="flex:1;${this.pantheonState==='CREATIVE'?'border-color:#00ffff;color:#00ffff':''}">CREATIVE</button>
+                    <button class="pan-btn" id="pan-mode-survive" style="flex:1;${this.pantheonState==='SURVIVAL'?'border-color:#ff4444;color:#ff4444':''}">SURVIVE</button>
+                </div>
+            `;
+            list.appendChild(modeDiv);
+            
+            // Mode listeners
+            setTimeout(() => {
+                const btnC = document.getElementById('pan-mode-creative');
+                const btnS = document.getElementById('pan-mode-survive');
+                if(btnC) btnC.onclick = () => { 
+                    this.pantheonState = 'CREATIVE'; 
+                    this.showToast("Creative Mode: Invincible + Flight + Bonk Music"); 
+                    this.startBGM(); 
+                    refreshPlayerTab(); 
+                };
+                if(btnS) btnS.onclick = () => { 
+                    this.pantheonState = 'SURVIVAL'; 
+                    this.isFlying = false; // Disable flight
+                    this.showToast("Survive Mode: Mortal + Normal Music"); 
+                    this.startBGM(); 
+                    refreshPlayerTab(); 
+                };
+            }, 0);
+
+            // Add Weapon Dropdown
+            const wSel = document.createElement('select');
+            wSel.style.maxWidth = '120px';
+            wSel.innerHTML = `<option value="">Add Weapon...</option>`;
+            Object.keys(WEAPONS).forEach(k => {
+                if(!this.weapons.includes(k)) wSel.innerHTML += `<option value="${k}">${WEAPONS[k].name}</option>`;
+            });
+            wSel.onchange = (e) => {
+                if(e.target.value) {
+                    this.weapons.push(e.target.value);
+                    this.weaponLevels[e.target.value] = 1;
+                    refreshPlayerTab();
+                    this.updateLoadoutUI();
+                }
+            };
+            list.appendChild(wSel);
+            
+            // Buffs
+            this.runes.forEach(r => {
+                const lvl = this.runeLevels[r] || 1;
+                const d = document.createElement('div');
+                d.style.marginBottom = '4px';
+                d.style.marginTop = '4px';
+                d.innerHTML = `
+                    <span style="color:#00ff88">${r} Lv${lvl}</span>
+                    <button class="pan-mini-btn" data-act="upg_r" data-key="${r}">+</button>
+                    <button class="pan-mini-btn" data-act="rem_r" data-key="${r}">x</button>
+                `;
+                list.appendChild(d);
+            });
+            
+            // Character Skin
+            const cSel = document.createElement('select');
+            cSel.style.marginTop = '10px';
+            cSel.innerHTML = '';
+            Object.keys(CHARACTERS).forEach(k => {
+                cSel.innerHTML += `<option value="${k}" ${this.characterKey===k?'selected':''}>${CHARACTERS[k].name}</option>`;
+            });
+            cSel.onchange = (e) => {
+                if(e.target.value && e.target.value !== this.characterKey) {
+                    this.evolveCharacter(e.target.value);
+                }
+            };
+            list.appendChild(cSel);
+            
+            // Button Listeners
+            list.querySelectorAll('.pan-mini-btn').forEach(b => {
+                b.onclick = (e) => {
+                    const k = b.dataset.key;
+                    if(b.dataset.act === 'upg_w') this.weaponLevels[k]++;
+                    if(b.dataset.act === 'rem_w') {
+                        this.weapons = this.weapons.filter(x => x !== k);
+                        delete this.weaponLevels[k];
+                    }
+                    if(b.dataset.act === 'upg_r') {
+                        this.runeLevels[k]++;
+                        this.applyRune(k);
+                    }
+                    if(b.dataset.act === 'rem_r') {
+                        this.runes = this.runes.filter(x => x !== k);
+                        delete this.runeLevels[k];
+                        // Cannot easily un-apply stats without recalc, so stats remain buffed.
+                    }
+                    refreshPlayerTab();
+                    this.updateLoadoutUI();
+                };
+            });
+        };
+        
+        document.querySelector('.pan-tab[data-tab="player"]').onclick = () => {
+            tabs.forEach(x => x.classList.remove('active'));
+            document.querySelector('.pan-tab[data-tab="player"]').classList.add('active');
+            contents.forEach(c => c.style.display = 'none');
+            document.getElementById('pan-content-player').style.display = 'flex';
+            refreshPlayerTab();
+        };
+    }
+
+    // Helper to add Shrine (moved from scatterProps to be reusable)
+    createShrineAt(x, z) {
+        const terrainY = this.getTerrainHeight(x, z);
+        const shrine = new THREE.Group();
+        
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.5, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x606060 }));
+        base.position.y = terrainY + 0.4; shrine.add(base);
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 3.5, 8), new THREE.MeshStandardMaterial({ color: 0x808080 }));
+        pillar.position.y = terrainY + 2.3; shrine.add(pillar);
+        const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.6, 0), new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff }));
+        crystal.position.y = terrainY + 4.5; shrine.add(crystal);
+        const barrier = new THREE.Mesh(new THREE.SphereGeometry(3, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.15, wireframe: true }));
+        barrier.position.y = terrainY + 2.0; shrine.add(barrier);
+        
+        shrine.position.set(x, 0, z);
+        this.scene.add(shrine);
+        if(!this.props) this.props = [];
+        this.props.push(shrine);
+        
+        this.shrines.push({
+            group: shrine,
+            position: new THREE.Vector3(x, terrainY, z),
+            crystal, barrier, used: false, activationTime: 0, requiredTime: 5.5
+        });
+    }
 
     setSeed(seed) {
         this.rng = seed ? new SeededRandom(seed) : null;
@@ -498,6 +896,17 @@ export class Game {
         }
         this.updateLoadoutUI();
         this.updateObjectives();
+        
+        if (this.gameMode === 'PANTHEON') {
+            const topHud = document.getElementById('top-hud');
+            if (topHud) topHud.style.display = 'none';
+            const mini = document.getElementById('minimap-container');
+            if (mini) mini.style.display = 'none';
+            const compass = document.getElementById('compass-container');
+            if (compass) compass.style.display = 'none';
+            // Custom UI overlay handles itself in initPantheonUI
+            return;
+        }
         
         // Multiplayer HUD tweaks
         if (this.gameMode === 'MULTI') {
@@ -1104,7 +1513,12 @@ export class Game {
         }
         // Keep non-pixel mode as baseline brightness; boost only for pixelated view
         if (this.renderer) {
-            this.renderer.toneMappingExposure = this.pixelateEnabled ? 1.8 : 1.0;
+            // TNS Tier 4 Brightness Override
+            if (this.gameMode === 'TNS' && this.tnsTier === 4) {
+                this.renderer.toneMappingExposure = 2.5;
+            } else {
+                this.renderer.toneMappingExposure = this.pixelateEnabled ? 1.8 : 1.0;
+            }
         }
     }
 
@@ -1230,6 +1644,12 @@ export class Game {
             return;
         }
 
+        // Pantheon Creative: Bonk Theme
+        if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
+            this.playMusicUrl("/BONK ME UP BEFORE YOU GO!!!.mp3", true);
+            return;
+        }
+
         let trackUrl = "";
         
         // Character Theme Override
@@ -1343,21 +1763,79 @@ export class Game {
         this.createWorld();
         this.createPlayer();
         
+        // Restore TNS Save State
+        if (this.gameMode === 'TNS' && this.lobbySettings.tnsData) {
+            const d = this.lobbySettings.tnsData;
+            
+            // Apply Tier Scaling from TNS data to global tier tracking
+            this.tier = this.tnsTier;
+
+            if (d.weapons) this.weapons = [...d.weapons];
+            if (d.runes) this.runes = [...d.runes];
+            if (d.weaponLevels) this.weaponLevels = {...d.weaponLevels};
+            if (d.runeLevels) this.runeLevels = {...d.runeLevels};
+            
+            // Restore Player Progression
+            if (d.level) this.level = d.level;
+            if (d.xp) this.xp = d.xp;
+            if (d.xpToLevel) this.xpToLevel = d.xpToLevel;
+            if (d.coins) this.coins = d.coins;
+            if (d.kills) this.kills = d.kills;
+            if (d.evolutionStats) this.evolutionStats = d.evolutionStats;
+
+            // Re-apply stats
+            if (d.savedStats) {
+                this.runes.forEach(r => {
+                    const lvl = this.runeLevels[r] || 1;
+                    for(let i=0; i<lvl; i++) this.applyRune(r);
+                });
+            }
+            
+            // Ensure HP is full or saved value? Let's heal to full on tier start for fairness, 
+            // but maxHealth is now correctly set by applyRune above.
+            this.playerHealth = this.maxHealth;
+            
+            // Update UI
+            this.updateUI();
+            if (this.levelDisplay) this.levelDisplay.innerText = `LVL ${this.level}`;
+            if (this.xpBar) this.xpBar.style.width = (this.xp / this.xpToLevel * 100) + '%';
+            if (this.healthBar) this.healthBar.style.width = '100%';
+            if (this.healthText) this.healthText.innerText = `${Math.floor(this.playerHealth)} / ${this.maxHealth}`;
+        }
+
         // Lore UI setup removed from here - handled globally in main.js
 
         window.addEventListener('keydown', e => this.onKey(e, true));
         window.addEventListener('keyup', e => this.onKey(e, false));
         window.addEventListener('resize', () => this.onResize());
         window.addEventListener('mousemove', e => this.onMouseMove(e));
-        window.addEventListener('click', () => {
+        window.addEventListener('click', (e) => {
+            // Pantheon UI Protection: Don't lock if interacting with menu
+            if (this.gameMode === 'PANTHEON') {
+                if (e.target.closest('#pantheon-menu') || e.target.closest('.pan-tab') || e.target.closest('.pan-btn') || e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
+                    return;
+                }
+            }
             if (this.renderer && this.renderer.domElement) {
                 const p = this.renderer.domElement.requestPointerLock();
                 if (p instanceof Promise) p.catch(() => {});
             }
         });
+        
+        // Pantheon Zoom
+        window.addEventListener('wheel', (e) => {
+            if (this.gameMode === 'PANTHEON' && this.cameraDistance) {
+                this.cameraDistance = Math.max(5, Math.min(60, this.cameraDistance + e.deltaY * 0.01));
+            }
+        }, { passive: true });
 
         // Initial HUD setup (fixes MP UI not showing)
         this.initHUD();
+        
+        if (this.gameMode === 'PANTHEON') {
+            this.initPantheonUI();
+            this.pantheonState = 'CREATIVE'; // Default
+        }
 
         // Game only starts after intro sequence finishes
         this.isPlaying = false;
@@ -1376,6 +1854,8 @@ export class Game {
         if (key === ' ') {
             this.keys.space = pressed;
             e.preventDefault();
+        } else if (key === 'control') {
+            this.keys.ctrl = pressed;
         } else if (this.keys.hasOwnProperty(key)) {
             this.keys[key] = pressed;
             e.preventDefault();
@@ -1401,12 +1881,76 @@ export class Game {
         );
     }
 
+    initMaterials() {
+        // Shared materials setup
+        this.grassMaterial = new THREE.MeshStandardMaterial({
+            map: this.grassTex,
+            roughness: 0.9,
+            color: 0xffffff
+        });
+
+        // Lava Shader Material
+        this.lavaMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0 },
+                uvScale: { value: new THREE.Vector2(3.0, 1.0) },
+                texture1: { value: this.rockTex || null },
+                fogColor: { value: new THREE.Color(0xc6f2ff) },
+                fogDensity: { value: 0.012 }
+            },
+            vertexShader: `
+                uniform vec2 uvScale;
+                varying vec2 vUv;
+                varying float vFogDepth;
+                void main() {
+                    vUv = uvScale * uv;
+                    vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+                    gl_Position = projectionMatrix * mvPosition;
+                    vFogDepth = -mvPosition.z;
+                }
+            `,
+            fragmentShader: `
+                uniform float time;
+                uniform sampler2D texture1;
+                uniform vec3 fogColor;
+                uniform float fogDensity;
+                varying vec2 vUv;
+                varying float vFogDepth;
+                
+                void main() {
+                    vec2 p = -1.0 + 2.0 * vUv;
+                    vec2 flow = vec2(time * 0.02, time * 0.05);
+                    vec4 noise1 = texture2D( texture1, vUv + flow );
+                    vec4 noise2 = texture2D( texture1, vUv * 2.0 - flow * 1.5 );
+                    float mixVal = (noise1.r + noise2.r) * 0.5;
+                    vec3 dark = vec3(0.4, 0.05, 0.0);
+                    vec3 mid = vec3(0.9, 0.3, 0.0);
+                    vec3 bright = vec3(1.0, 0.8, 0.2);
+                    vec3 col = mix(dark, mid, smoothstep(0.2, 0.6, mixVal));
+                    col = mix(col, bright, smoothstep(0.6, 1.0, mixVal));
+                    col *= 1.0 + 0.3 * sin(time);
+                    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+                    col = mix( col, fogColor, fogFactor );
+                    gl_FragColor = vec4(col, 1.0);
+                }
+            `
+        });
+    }
+
     createWorld() {
         this.terrainPieces = [];
         this.ramps = [];
         this.obstacles = [];
         this.graves = [];
         this.clouds = []; // Track clouds
+
+        // Initialize materials FIRST so they are available for all sub-generators
+        this.initMaterials();
+
+        if (this.customWorldData) {
+            this.loadCustomWorld(this.customWorldData);
+            return;
+        }
 
         if (this.gameMode === 'AWAKENING') {
             this.createAwakeningWorld();
@@ -1418,17 +1962,14 @@ export class Game {
             this.createTNSFinalArena();
             return;
         }
+        
+        if (this.gameMode === 'PANTHEON') {
+            // Flat canvas
+            this.createFlatWorld();
+            return;
+        }
 
         const size = 440;
-        
-        // Tier 1: Uses loaded textures
-        // Tier > 1: Could tint them or just use them
-        
-        this.grassMaterial = new THREE.MeshStandardMaterial({
-            map: this.grassTex,
-            roughness: 0.9,
-            color: 0xffffff
-        });
         const grassMat = this.grassMaterial;
 
         const addPlatform = ({ x, z, width, depth, height }) => {
@@ -1622,68 +2163,8 @@ export class Game {
             addCapBody(visualLength/2, rise/2);
         };
 
-        // Base ground plane – Animated Lava Shader
-        const lavaUniforms = {
-            time: { value: 0 },
-            uvScale: { value: new THREE.Vector2(3.0, 1.0) },
-            texture1: { value: this.rockTex || null }, // Use rock tex for noise base
-            fogColor: { value: new THREE.Color(0xc6f2ff) },
-            fogDensity: { value: 0.012 }
-        };
-        
-        // Lava Shader Material
-        const lavaMat = new THREE.ShaderMaterial({
-            uniforms: lavaUniforms,
-            vertexShader: `
-                uniform vec2 uvScale;
-                varying vec2 vUv;
-                varying float vFogDepth;
-                void main() {
-                    vUv = uvScale * uv;
-                    vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
-                    gl_Position = projectionMatrix * mvPosition;
-                    vFogDepth = -mvPosition.z;
-                }
-            `,
-            fragmentShader: `
-                uniform float time;
-                uniform sampler2D texture1;
-                uniform vec3 fogColor;
-                uniform float fogDensity;
-                varying vec2 vUv;
-                varying float vFogDepth;
-                
-                void main() {
-                    vec2 p = -1.0 + 2.0 * vUv;
-                    vec2 flow = vec2(time * 0.02, time * 0.05);
-                    
-                    // Layered noise sampling
-                    vec4 noise1 = texture2D( texture1, vUv + flow );
-                    vec4 noise2 = texture2D( texture1, vUv * 2.0 - flow * 1.5 );
-                    
-                    float mixVal = (noise1.r + noise2.r) * 0.5;
-                    
-                    // Color ramp: Dark Red -> Bright Orange -> Yellow
-                    vec3 dark = vec3(0.4, 0.05, 0.0);
-                    vec3 mid = vec3(0.9, 0.3, 0.0);
-                    vec3 bright = vec3(1.0, 0.8, 0.2);
-                    
-                    vec3 col = mix(dark, mid, smoothstep(0.2, 0.6, mixVal));
-                    col = mix(col, bright, smoothstep(0.6, 1.0, mixVal));
-                    
-                    // Pulsing emissive glow
-                    col *= 1.0 + 0.3 * sin(time);
-
-                    // Fog
-                    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
-                    col = mix( col, fogColor, fogFactor );
-                    
-                    gl_FragColor = vec4(col, 1.0);
-                }
-            `
-        });
-        // Store ref to update time
-        this.lavaMaterial = lavaMat;
+        // Use pre-initialized materials
+        const lavaMat = this.lavaMaterial;
 
         this.baseGroundMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(size, size),
@@ -1857,8 +2338,13 @@ export class Game {
         // (Removed high platform specific logic, generic linker handles it)
 
         // Simple height lookup for grounding: step up when over a platform
-        this.getTerrainHeight = (x, z) => {
-            let maxHeight = 0;
+        // checkY: optional current Y of entity. If provided, ignore surfaces far above/below to prevent snapping to overhead bridges or deep basements.
+        this.getTerrainHeight = (x, z, checkY) => {
+            let maxHeight = -999; // Default to abyss if nothing found
+            let foundAny = false;
+
+            const STEP_HEIGHT = 2.5; // Max height we can "snap" up to
+            const DROP_HEIGHT = 100.0; // Max distance we can check down (raycast length essentially)
 
             // flat megabonk platforms
             for (let p of this.terrainPieces) {
@@ -1870,7 +2356,16 @@ export class Game {
                     z >= p.z - halfD &&
                     z <= p.z + halfD
                 ) {
-                    maxHeight = Math.max(maxHeight, p.height);
+                    const h = p.height;
+                    // If checkY provided, filter out platforms that are too high to step onto
+                    if (checkY !== undefined) {
+                        if (h > checkY + STEP_HEIGHT) continue; // Too high, it's a ceiling/wall
+                        // Note: We don't filter 'too low' strictly because we want to find the highest *valid* ground below us
+                    }
+                    if (h > maxHeight) {
+                        maxHeight = h;
+                        foundAny = true;
+                    }
                 }
             }
 
@@ -1884,7 +2379,6 @@ export class Game {
                 const localX = dx * cos + dz * sin;
                 const localZ = -dx * sin + dz * cos;
 
-                // Slightly expanded bounds so connections between ramps and flats feel less "catchy"
                 const halfW = r.width / 2 + 0.6;
                 const halfL = r.length / 2 + 0.6;
 
@@ -1894,11 +2388,23 @@ export class Game {
                     localZ <= halfL
                 ) {
                     const t = (localZ + r.length / 2) / r.length;
-                    const h = r.fromHeight + t * (r.toHeight - r.fromHeight);
-                    maxHeight = Math.max(maxHeight, h);
+                    let h = r.fromHeight + t * (r.toHeight - r.fromHeight);
+                    
+                    // If checkY provided, check validity
+                    if (checkY !== undefined) {
+                        // Ramps are tricky because 'h' varies. Check specific point.
+                        if (h > checkY + STEP_HEIGHT) continue; 
+                    }
+                    
+                    if (h > maxHeight) {
+                        maxHeight = h;
+                        foundAny = true;
+                    }
                 }
             }
 
+            // If we found nothing valid, fallback to 0 (default lava level) or just return the low value
+            if (!foundAny) return 0;
             return maxHeight;
         };
 
@@ -2138,54 +2644,51 @@ export class Game {
     createTerrainPiece(x, z, size, height) {
         const group = new THREE.Group();
         
-        // Top surface (grass)
+        // Materials with textures if available
+        const topMat = this.grassMaterial ? this.grassMaterial.clone() : new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.7 });
+        
+        // Top surface
         const top = new THREE.Mesh(
             new THREE.BoxGeometry(size, 0.5, size),
-            new THREE.MeshStandardMaterial({ 
-                color: 0x4ade80,
-                roughness: 0.7,
-                flatShading: true
-            })
+            topMat
         );
         top.position.y = height + 0.25;
         top.receiveShadow = true;
         top.castShadow = true;
         group.add(top);
         
-        // Sides (dirt)
+        // Sides
         if (height > 0) {
-            const sideMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x8B4513,
-                roughness: 0.8,
-                flatShading: true
+            const sideMat = new THREE.MeshStandardMaterial({
+                map: this.sideTex || null,
+                color: this.sideTex ? 0xffffff : 0x8B4513,
+                roughness: 0.9
             });
+            // Tiling
+            if (this.sideTex) {
+                sideMat.map = this.sideTex.clone();
+                sideMat.map.wrapS = THREE.RepeatWrapping;
+                sideMat.map.wrapT = THREE.RepeatWrapping;
+                sideMat.map.repeat.set(Math.max(1, size/10), Math.max(1, height/10));
+            }
             
             const sideHeight = height;
             
             // Front
-            const front = new THREE.Mesh(
-                new THREE.BoxGeometry(size, sideHeight, 0.5),
-                sideMaterial
-            );
+            const front = new THREE.Mesh(new THREE.BoxGeometry(size, sideHeight, 0.5), sideMat);
             front.position.set(0, height/2, size/2);
             front.castShadow = true;
             group.add(front);
             
-            // Back
             const back = front.clone();
             back.position.z = -size/2;
             group.add(back);
             
-            // Left
-            const left = new THREE.Mesh(
-                new THREE.BoxGeometry(0.5, sideHeight, size),
-                sideMaterial
-            );
+            const left = new THREE.Mesh(new THREE.BoxGeometry(0.5, sideHeight, size), sideMat);
             left.position.set(-size/2, height/2, 0);
             left.castShadow = true;
             group.add(left);
             
-            // Right
             const right = left.clone();
             right.position.x = size/2;
             group.add(right);
@@ -2194,7 +2697,8 @@ export class Game {
         group.position.set(x, 0, z);
         this.scene.add(group);
         
-        this.terrainPieces.push({ x, z, size, height, group });
+        // Add to tracking array used by isLava / isOnPlatformOrRamp
+        this.terrainPieces.push({ x, z, size, width: size, depth: size, height, group });
     }
     
     createRamp(x, z, size, heightStart, heightEnd, rotation) {
@@ -2309,17 +2813,47 @@ export class Game {
             placeSide(-(width / 2 + sideThickness / 2 - 0.1));
             placeSide((width / 2 + sideThickness / 2 - 0.1));
         } catch (e) {
-            // If physics operations fail for any reason, silently continue (visuals still present)
             console.warn('createRamp physics add skipped:', e);
         }
+        
+        // Add to tracking for isOnPlatformOrRamp so player doesn't die/teleport
+        this.ramps.push({ x, z, length: visualLength, width, fromHeight: heightStart, toHeight: heightEnd, yaw: rotation, slope, group });
     }
     
+    createFlatWorld() {
+        // Pantheon Mode: Lava floor, single platform
+        const size = 400;
+        
+        // Lava Floor
+        this.baseGroundMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(size, size),
+            this.lavaMaterial // Use the animated lava material
+        );
+        this.baseGroundMesh.rotation.x = -Math.PI/2;
+        this.baseGroundMesh.position.y = this.lavaGroundY;
+        this.scene.add(this.baseGroundMesh);
+        
+        const body = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+        body.quaternion.setFromEuler(-Math.PI/2, 0, 0);
+        body.position.y = this.lavaGroundY;
+        this.world.addBody(body);
+        
+        // Single Central Platform
+        this.createTerrainPiece(0, 0, 40, 5);
+        
+        // Bright generic lighting
+        this.scene.background = new THREE.Color(0x87CEEB);
+        this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.005);
+        
+        this.spawnPoint = new THREE.Vector3(0, 7, 0); // Spawn on platform
+    }
+
     createTNSFinalArena() {
-        // "epic boss battle, with nonrandomly generated terrain, instead a small arena with lava floor, and the texture for grey rock"
+        // Epic Final Boss Arena
         const arenaRadius = 45;
         
         // Lava floor
-        const lavaSize = 200;
+        const lavaSize = 300;
         this.baseGroundMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(lavaSize, lavaSize),
             this.lavaMaterial
@@ -2337,7 +2871,7 @@ export class Game {
         const rockMat = new THREE.MeshStandardMaterial({ 
             map: this.rockTex, 
             roughness: 0.8,
-            color: 0x888888 
+            color: 0xaaaaaa // Even lighter
         });
         
         const arenaGroup = new THREE.Group();
@@ -2356,7 +2890,6 @@ export class Game {
             pillar.castShadow = true;
             arenaGroup.add(pillar);
             
-            // Physics
             const pBody = new CANNON.Body({ mass: 0 });
             pBody.addShape(new CANNON.Box(new CANNON.Vec3(1, 4, 1)));
             pBody.position.set(px, 4, pz);
@@ -2366,26 +2899,46 @@ export class Game {
         
         this.scene.add(arenaGroup);
         
-        // Physics for platform
         const platBody = new CANNON.Body({ mass: 0 });
         platBody.addShape(new CANNON.Cylinder(arenaRadius, arenaRadius, 2, 16));
-        // Cannon cylinder orientation is different, need to align
         const q = new CANNON.Quaternion();
         q.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
         platBody.quaternion = q;
         this.world.addBody(platBody);
         
         this.terrainPieces.push({ x:0, z:0, width: arenaRadius*2, depth: arenaRadius*2, height: 1, group: arenaGroup });
-        
         this.spawnPoint = new THREE.Vector3(0, 3, 30);
         
-        // Dark, epic lighting
-        this.scene.background = new THREE.Color(0x220000);
-        this.scene.fog = new THREE.FogExp2(0x220000, 0.02);
+        // EXTRA BRIGHT Lighting for visibility
+        this.scene.background = new THREE.Color(0xffaa88); // Very bright sunset
+        this.scene.fog = new THREE.FogExp2(0xffaa88, 0.003); // Low density
+
+        if (this.renderer) this.renderer.toneMappingExposure = 2.5;
+
+        const tnsAmbient = new THREE.AmbientLight(0xffffff, 2.0);
+        this.scene.add(tnsAmbient);
+
+        const tnsFill = new THREE.DirectionalLight(0xffeedd, 1.2);
+        tnsFill.position.set(-10, 20, -10);
+        this.scene.add(tnsFill);
         
-        // Create boss spawn logic handled by update loop or init
-        // For TNS Tier 4, we spawn Barkvader immediately
-        this.bossPortal = null; // No portal
+        this.bossPortal = null;
+        
+        // Boss Phase Logic Setup
+        this.tnsPhase = 0; // 0: Warmup
+        this.tnsTimer = 0;
+        this.tnsWarmupDuration = 30;
+        this.spawnRateMultiplier = 2.0; // 2x spawns
+        
+        this.showToast("SURVIVE! Boss arriving in 30s...");
+        
+        // Spawn chests immediately for prep
+        for(let i=0; i<4; i++) {
+            const angle = i * Math.PI/2 + Math.PI/4;
+            const x = Math.cos(angle) * 20;
+            const z = Math.sin(angle) * 20;
+            this.spawnChest(new THREE.Vector3(x, 1, z), 10); // Costs coins
+        }
     }
 
     createAwakeningWorld() {
@@ -3682,11 +4235,226 @@ export class Game {
                 this.throwBone();
             } else if (this.characterKey === 'BOBERTO' && !hasSword) {
                 // Manual ghost spawn check? Or just passive.
-                // Prompt says "He actually cant directly attack... hes a GHOST".
-                // So clicking does nothing or maybe a little poof effect.
                 this.particleSystem.emit(this.playerMesh.position.clone().add(new THREE.Vector3(0,1,0)), 0xffffff, 5);
             }
+            
+            // Pantheon Placement
+            if (this.gameMode === 'PANTHEON' && this.activeTool) {
+                this.pantheonSpawn();
+            }
         });
+    }
+    
+    pantheonSpawn() {
+        if (!this.activeTool) return;
+        
+        // Raycast from camera center to ground
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera({x:0, y:0}, this.camera);
+        
+        // Simple plane intersection for placement (y=0 plane approximation or terrain check)
+        // Since we don't have easy mesh access to all terrain for raycasting in this architecture,
+        // let's project forward a fixed distance or until y=terrainHeight.
+        
+        // Project 15 units forward, find ground Y there
+        const dir = new THREE.Vector3();
+        this.camera.getWorldDirection(dir);
+        const dist = 10;
+        const targetPos = this.camera.position.clone().add(dir.multiplyScalar(dist));
+        
+        // Snap to ground
+        const h = this.getTerrainHeight(targetPos.x, targetPos.z);
+        // If aiming at sky, use dist. If aiming at ground, use intersection?
+        // Simple logic: Place at (x, z) on terrain height.
+        
+        const x = targetPos.x;
+        const z = targetPos.z;
+        const y = h;
+        
+        const t = this.activeTool;
+        const data = { type: t.type, id: t.id, x, y, z, rotation: this.playerMesh.rotation.y };
+        
+        this.spawnFromData(data);
+        this.placedObjects.push(data);
+        this.showToast(`Placed ${t.name}`);
+        this.playSound('bonk', 1.5, 0.5);
+    }
+    
+    spawnFromData(d) {
+        // Handle spawning based on type
+        if (d.type === 'enemy') {
+            this.createEnemy({ overrideX: d.x, overrideZ: d.z, overrideType: d.id });
+        } else if (d.type === 'ghost') {
+            // Need custom spawn for ghost at location
+            // Hack: override createGhost to accept pos? No, just push to enemies manually
+            // Reuse createEnemy logic? Ghosts in createEnemy? No.
+            // createGhost spawns around player. Let's just spawn a new enemy entry manually.
+            // Simplified: treat as enemy but call createGhost logic? 
+            // Just spawn a standard enemy of that type ID to keep it simple, 
+            // but Ghosts have special physics.
+            // Let's create a temp enemy spawn for now.
+            // actually createGhost(type) uses player pos.
+            // I'll make createGhost accept pos.
+            this.createGhostAt(d.id, d.x, d.z);
+        } else if (d.type === 'boss') {
+            // Hack createBoss
+            // We need to move the portal? Or just spawn the boss mesh.
+            // createBoss uses bossPortal pos.
+            // Let's create a standalone boss entity.
+            this.spawnBossAt(d.id, d.x, d.z);
+        } else if (d.type === 'miniboss') {
+            // spawnMiniboss uses random near player.
+            this.spawnMinibossAt(d.id, d.x, d.z);
+        } else if (d.type === 'bob') {
+            this.spawnBob(d.x, d.z, d.id);
+        } else if (d.type === 'prop') {
+            // Reuse scatterProps logic for single item?
+            this.spawnProp(d.id, d.x, d.z, d.y, d.rotation);
+        } else if (d.type === 'chest') {
+            this.spawnChest(new THREE.Vector3(d.x, d.y, d.z), 0);
+        } else if (d.type === 'shrine') {
+            this.createShrineAt(d.x, d.z);
+        } else if (d.type === 'wall') {
+            // Maze Wall (Awakening Block)
+            const cellSize = 20; const wallHeight = 12;
+            const wTex = this.rockTex ? this.rockTex.clone() : null;
+            if(wTex) wTex.repeat.set(2,1);
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(cellSize, wallHeight, cellSize),
+                new THREE.MeshStandardMaterial({ map: wTex, color: 0x888888, roughness: 0.8 })
+            );
+            mesh.position.set(d.x, d.y + wallHeight/2, d.z);
+            this.scene.add(mesh);
+            const body = new CANNON.Body({ mass: 0 });
+            body.addShape(new CANNON.Box(new CANNON.Vec3(cellSize/2, wallHeight/2, cellSize/2)));
+            body.position.set(d.x, d.y + wallHeight/2, d.z);
+            this.world.addBody(body);
+            this.terrainPieces.push({ x: d.x, z: d.z, width: cellSize, depth: cellSize, height: wallHeight, isWall: true, group: mesh });
+        } else if (d.type === 'platform') {
+            let w=20, dep=20, h=5;
+            if(d.id==='small') { w=10; dep=10; h=3; }
+            if(d.id==='medium') { w=20; dep=20; h=8; }
+            if(d.id==='large') { w=40; dep=40; h=12; }
+            // Ensure texture support
+            this.createTerrainPiece(d.x, d.z, w, h);
+        } else if (d.type === 'ramp') {
+            let hEnd = d.y + 5;
+            if(d.id==='long') hEnd = d.y + 10;
+            if(d.id==='steep') hEnd = d.y + 15;
+            // createRamp(x, z, size, hStart, hEnd, rot)
+            this.createRamp(d.x, d.z, 20, d.y, hEnd, d.rotation);
+        } else if (d.type === 'portal') {
+            this.createBossPortal(d.x, d.z);
+        }
+    }
+    
+    spawnProp(id, x, z, y, rot) {
+        // Simplified prop spawn
+        const group = new THREE.Group();
+        let mesh;
+        if(id === 'tree') {
+            mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 6, 6), new THREE.MeshStandardMaterial({color:0x4a3020}));
+            mesh.position.y = 3;
+            const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(2), new THREE.MeshStandardMaterial({color:0x1e7d1e}));
+            leaves.position.y = 6;
+            group.add(leaves);
+        } else if (id === 'rock') {
+            mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5), new THREE.MeshStandardMaterial({color:0x777777}));
+            mesh.position.y = 1;
+        } else if (id === 'pillar') {
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1), new THREE.MeshStandardMaterial({color:0x888888}));
+            mesh.position.y = 3;
+        } else if (id === 'ruins') {
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 1), new THREE.MeshStandardMaterial({color:0x666666}));
+            mesh.position.y = 0.5;
+        }
+        
+        if (mesh) group.add(mesh);
+        group.position.set(x, y, z);
+        group.rotation.y = rot;
+        this.scene.add(group);
+        // Add to obstacles for physics
+        this.obstacles.push({ type:'box', x, z, halfExtents:{x:1, z:1} }); // approx
+    }
+    
+    createGhostAt(type, x, z) {
+        // Hacky override of createGhost logic
+        const pPos = this.playerBody.position.clone();
+        this.playerBody.position.set(x - 10, 0, z); // fake player pos so createGhost spawns near target
+        this.createGhost(type); // will spawn around 'player'
+        // fix pos
+        const ghost = this.enemies[this.enemies.length-1];
+        if(ghost) {
+            const y = this.getTerrainHeight(x, z) + 3;
+            ghost.body.position.set(x, y, z);
+            ghost.mesh.position.set(x, y, z);
+        }
+        this.playerBody.position.copy(pPos); // restore
+    }
+    
+    spawnBossAt(type, x, z) {
+        // Create boss then move it
+        // TNS bosses rely on tier/mode.
+        // We need to temporarily force mode/tier or just implement manual boss visuals.
+        // This is complex. For now, just spawn standard Gatekeeper.
+        this.createBoss(true);
+        const b = this.bossEnemy; // newly created
+        if(b) {
+            const y = this.getTerrainHeight(x, z);
+            b.body.position.set(x, y+2, z);
+            b.mesh.position.set(x, y, z);
+        }
+    }
+    
+    spawnMinibossAt(type, x, z) {
+        this.spawnMiniboss(type);
+        const b = this.enemies[this.enemies.length-1]; // assuming it's the last added
+        if(b && b.type === 'miniboss') {
+            const y = this.getTerrainHeight(x, z);
+            b.body.position.set(x, y+2, z);
+            b.mesh.position.set(x, y, z);
+        }
+    }
+    
+    exportWorld() {
+        const data = {
+            version: 1,
+            objects: this.placedObjects
+        };
+        const str = JSON.stringify(data);
+        const b64 = btoa(str);
+        const ta = document.getElementById('pan-export-area');
+        if(ta) {
+            ta.value = b64;
+            ta.select();
+            document.execCommand('copy');
+            this.showToast("World Data Copied to Clipboard!");
+        }
+    }
+    
+    loadCustomWorld(b64) {
+        try {
+            const str = atob(b64);
+            const data = JSON.parse(str);
+            
+            this.createFlatWorld(); // Base
+            
+            // Replay spawning
+            if (data.objects) {
+                data.objects.forEach(obj => {
+                    this.spawnFromData(obj);
+                    // Keep tracking if in pantheon mode to re-export
+                    if(this.gameMode === 'PANTHEON') {
+                        this.placedObjects.push(obj);
+                    }
+                });
+            }
+            this.showToast("Custom World Loaded!");
+        } catch(e) {
+            console.error(e);
+            this.showToast("Error Loading World Data");
+            this.createFlatWorld();
+        }
     }
 
     runTutorial() {
@@ -4124,9 +4892,16 @@ export class Game {
         const group = new THREE.Group();
         let bossRing = null;
         let armL, armR, legL, legR;
+        let bossName = 'The Gatekeeper';
 
         // Custom visuals for TNS bosses
         if (this.gameMode === 'TNS' && isMain) {
+            // Apply TNS names here to ensure object is consistent with visual
+            if (this.tnsTier === 1) bossName = 'Babybark';
+            else if (this.tnsTier === 2) bossName = 'Smolbark';
+            else if (this.tnsTier === 3) bossName = 'Chadbark';
+            else if (this.tnsTier === 4) bossName = 'Barkvader';
+
             const barkMat = new THREE.MeshStandardMaterial({ color: 0x5D4037, roughness: 0.9 });
             const darkBarkMat = new THREE.MeshStandardMaterial({ color: 0x3E2723, roughness: 1.0 });
             const leafMat = new THREE.MeshStandardMaterial({ color: 0x33691E, flatShading: true });
@@ -4389,14 +5164,21 @@ export class Game {
         // Add active boss behaviour state: attack timer and teleport cooldown
         // MASSIVELY BUFFED HP (10x base)
         // TNS Boss Overrides
-        let bossName = 'The Gatekeeper';
         let customHp = 30000;
         
         if (this.gameMode === 'TNS' && isMain) {
-            if (this.tnsTier === 1) { bossName = 'Babybark'; customHp = 5000; }
-            else if (this.tnsTier === 2) { bossName = 'Smolbark'; customHp = 15000; }
-            else if (this.tnsTier === 3) { bossName = 'Chadbark'; customHp = 45000; }
-            else if (this.tnsTier === 4) { bossName = 'Barkvader'; customHp = 100000; }
+            // Force names based on tier
+            if (this.tnsTier === 1) bossName = 'Babybark';
+            else if (this.tnsTier === 2) bossName = 'Smolbark';
+            else if (this.tnsTier === 3) bossName = 'Chadbark';
+            else if (this.tnsTier === 4) bossName = 'Barkvader';
+            
+            // 15x scaling per tier (starting base 5000 for tier 1)
+            // Tier 1: 5000
+            // Tier 2: 75000
+            // Tier 3: 1.125M
+            // Tier 4: 16.8M
+            customHp = 5000 * Math.pow(15, this.tnsTier - 1);
         } else {
             // Classic Scaling: Base 30k * 15^(tier-1)
             customHp = 30000 * Math.pow(15, this.tier - 1);
@@ -5521,6 +6303,11 @@ export class Game {
     }
 
     damageEnemy(enemy, amount) {
+        if (enemy.isShielded) {
+            this.spawnDamageNumber(enemy.mesh.position.clone().add(new THREE.Vector3(0,3,0)), "IMMUNE", false);
+            return;
+        }
+
         // Easy Mode: Enemies take 4x damage from player
         const easyScale = 4.0;
         
@@ -6227,6 +7014,9 @@ export class Game {
     }
 
     takeDamage(amount) {
+        // God Mode for Pantheon Creative
+        if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') return;
+
         if (this.playerHealth <= 0) return;
 
         // Calcium loses all built-up speed when hit
@@ -6527,12 +7317,20 @@ export class Game {
             this.playSound('levelup', 1.0, 0.8);
         }
 
-        // Run History
-        const runData = { date: new Date().toLocaleDateString(), score: totalScore, char: CHARACTERS[this.characterKey].name };
-        let history = JSON.parse(localStorage.getItem('uberthump_history') || '[]');
-        history.unshift(runData);
-        if (history.length > 10) history.pop();
-        localStorage.setItem('uberthump_history', JSON.stringify(history));
+        // Run History (Skip if Pantheon)
+        if (this.gameMode !== 'PANTHEON') {
+            const runData = { date: new Date().toLocaleDateString(), score: totalScore, char: CHARACTERS[this.characterKey].name };
+            let history = [];
+            try {
+                const raw = localStorage.getItem('uberthump_history');
+                history = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(history)) history = [];
+            } catch(e) { history = []; }
+            
+            history.unshift(runData);
+            if (history.length > 10) history.pop();
+            localStorage.setItem('uberthump_history', JSON.stringify(history));
+        }
 
         // Secret lore note unlock handling
         if (this.runFoundSecretNote) {
@@ -6554,7 +7352,14 @@ export class Game {
         runHistEl.style.display = 'block';
         historyList.innerHTML = '';
         
-        const bestScore = Math.max(...history.map(h => h.score));
+        // Safety: Ensure history loaded cleanly before mapping
+        let history = [];
+        try {
+            history = JSON.parse(localStorage.getItem('uberthump_history') || '[]');
+            if(!Array.isArray(history)) history = [];
+        } catch(e) {}
+
+        const bestScore = history.length > 0 ? Math.max(...history.map(h => h.score || 0)) : 0;
         
         history.forEach(h => {
             const div = document.createElement('div');
@@ -6628,26 +7433,77 @@ export class Game {
     }
 
     winGame() {
+        if (this.victoryTriggered) return; // Stop spam
+        this.victoryTriggered = true;
+
         // TNS Logic: Finish Story Tier
         if (this.gameMode === 'TNS') {
+            // Tier 4 Win -> Pantheon Unlock
+            if (this.tnsTier === 4) {
+                localStorage.setItem('uberthump_pantheon_unlocked', 'true');
+                
+                // Epic Portal Animation
+                // Create giant portal encompassing map
+                const giantPortal = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 32), new THREE.MeshBasicMaterial({color:0x000000, side:THREE.BackSide}));
+                this.scene.add(giantPortal);
+                
+                this.showToast("THE CYCLE IS BROKEN!");
+                this.playSound('boom', 0.2, 1.0);
+                
+                setTimeout(() => {
+                    alert("CONGRATULATIONS! PANTHEON MODE UNLOCKED.");
+                    // Clear save
+                    try {
+                        const saves = JSON.parse(localStorage.getItem('uberthump_tns_saves') || '[null,null,null]');
+                        const slot = this.lobbySettings.tnsSlot;
+                        if(slot !== undefined && slot !== null) {
+                            saves[slot] = null; // Completed
+                            localStorage.setItem('uberthump_tns_saves', JSON.stringify(saves));
+                        }
+                    } catch(e) { console.error(e); }
+                    window.location.reload();
+                }, 4000);
+                return;
+            }
+
             const nextTier = this.tnsTier + 1;
-            
-            this.showToast(`TIER ${this.tnsTier} COMPLETE!`);
+            this.showToast(`TIER ${this.tnsTier} COMPLETE! SAVING...`);
             this.playSound('unlock', 1.0, 1.0);
             
-            // Save Progress
-            if (nextTier > 4) {
-                // Beat the game?
-                alert("YOU HAVE BEATEN THE TOTALLY NOT SCRIPTED STORY! CONGRATS!");
-                // Reset to tier 1 or stay 4? Let's stay 4 or reset.
-                localStorage.setItem('uberthump_tns_tier', '1'); 
+            // Save Progress to Slot
+            const slot = this.lobbySettings.tnsSlot;
+            if (slot !== undefined && slot !== null) {
+                try {
+                    const saves = JSON.parse(localStorage.getItem('uberthump_tns_saves') || '[null,null,null]');
+                    saves[slot] = {
+                        tier: nextTier,
+                        character: this.characterKey,
+                        weapons: this.weapons,
+                        runes: this.runes,
+                        weaponLevels: this.weaponLevels,
+                        runeLevels: this.runeLevels,
+                        // Save Progression
+                        level: this.level,
+                        xp: this.xp,
+                        xpToLevel: this.xpToLevel,
+                        coins: this.coins,
+                        kills: this.kills,
+                        evolutionStats: this.evolutionStats,
+                        savedStats: true // marker to reload stats
+                    };
+                    localStorage.setItem('uberthump_tns_saves', JSON.stringify(saves));
+                    console.log(`TNS Progress Saved: Slot ${slot}, Tier ${nextTier}`);
+                } catch(e) {
+                    console.error("Failed to save TNS progress", e);
+                    alert("Error saving progress! Check console.");
+                }
             } else {
-                localStorage.setItem('uberthump_tns_tier', nextTier.toString());
+                console.error("TNS Win: No slot defined!", this.lobbySettings);
             }
             
             setTimeout(() => {
                 window.location.reload(); // Return to menu
-            }, 3000);
+            }, 2500);
             return;
         }
 
@@ -6702,6 +7558,7 @@ export class Game {
         // Clear boss state and enemies from previous tier
         this.bossPortalActivated = false;
         this.bossEnemy = null;
+        this.victoryTriggered = false; // Reset trigger for next tier
 
         // Remove old boss portal mesh if present
         if (this.bossPortal) {
@@ -6935,6 +7792,75 @@ export class Game {
     }
 
     updatePlayer(dt) {
+        // Flight Logic (Pantheon) - Only in Creative State
+        if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
+            // Check double jump for flight toggle
+            if (this.keys.space && !this.prevSpace) {
+                const now = performance.now();
+                if (now - this.lastSpaceTime < 300) {
+                    this.isFlying = !this.isFlying;
+                    this.showToast(this.isFlying ? "Flight Enabled" : "Flight Disabled");
+                    this.playerBody.velocity.set(0,0,0);
+                }
+                this.lastSpaceTime = now;
+            }
+            this.prevSpace = this.keys.space;
+            
+            if (this.isFlying) {
+                // Override physics
+                this.playerBody.velocity.set(0,0,0);
+                this.playerBody.mass = 0; // prevent gravity
+                
+                let speed = 20;
+                // Move based on camera dir
+                const dir = new THREE.Vector3();
+                this.camera.getWorldDirection(dir);
+                const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+                
+                // W/S move fwd/back relative to camera flat
+                const flatFwd = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+                
+                if (this.keys.w) this.playerBody.position.vadd(new CANNON.Vec3(flatFwd.x*speed*dt, 0, flatFwd.z*speed*dt), this.playerBody.position);
+                if (this.keys.s) this.playerBody.position.vsub(new CANNON.Vec3(flatFwd.x*speed*dt, 0, flatFwd.z*speed*dt), this.playerBody.position);
+                if (this.keys.d) this.playerBody.position.vadd(new CANNON.Vec3(side.x*speed*dt, 0, side.z*speed*dt), this.playerBody.position);
+                if (this.keys.a) this.playerBody.position.vsub(new CANNON.Vec3(side.x*speed*dt, 0, side.z*speed*dt), this.playerBody.position);
+                
+                // Space Up, Shift/Ctrl Down
+                if (this.keys.space) this.playerBody.position.y += speed * dt;
+                // Since we don't track Ctrl explicitly in this.keys, assume logic handles it or check event.
+                // Actually update key listener to track Ctrl? Or just reuse another key? 
+                // User said "hold ctrl". We need to add ctrl to key listener.
+                if (this.keys.ctrl) this.playerBody.position.y -= speed * dt;
+                
+                // Land if touching ground
+                const h = this.getTerrainHeight(this.playerBody.position.x, this.playerBody.position.z);
+                if (this.playerBody.position.y < h + 1.0) {
+                    this.isFlying = false;
+                    this.showToast("Landed");
+                }
+                
+                // Sync
+                this.playerMesh.position.copy(this.playerBody.position);
+                this.playerMesh.position.y -= 1.0; // Visual fix
+                
+                // Look
+                this.cameraRotation -= this.mouseMovement.x * 0.002;
+                this.cameraPitch = Math.max(-1.5, Math.min(1.5, this.cameraPitch + this.mouseMovement.y * 0.002));
+                this.mouseMovement.x = 0; this.mouseMovement.y = 0;
+                
+                // Sync rotation
+                this.playerMesh.rotation.y = this.cameraRotation;
+                
+                // Skip rest of normal physics
+                this.updateCamera();
+                return;
+            } else {
+                // Restore mass if needed
+                // Cannon doesn't dynamic mass change easily, assume we manually handle gravity in normal loop anyway
+                // Normal loop does manual gravity integration below.
+            }
+        }
+
         // Update Fog of War
         const fogX = (this.playerBody.position.x + 300) / 600 * this.fogResolution;
         const fogY = (this.playerBody.position.z + 300) / 600 * this.fogResolution;
@@ -7182,7 +8108,10 @@ export class Game {
                     }
 
                     // Push out horizontally along the local X axis to the nearest edge
-                    const pushAmount = halfW - Math.abs(localX) + 0.05;
+                    // Clamp push amount to prevent massive teleportation if deeply inside
+                    let pushAmount = halfW - Math.abs(localX) + 0.05;
+                    if (pushAmount > 2.0) pushAmount = 2.0; // Limit correction per frame
+
                     const signX = localX >= 0 ? 1 : -1;
                     // Convert local push back to world space using yaw rotation
                     const worldPushX = signX * pushAmount * cos;
@@ -7190,43 +8119,55 @@ export class Game {
 
                     pPos.x += worldPushX;
                     pPos.z += worldPushZ;
-                    // Kill horizontal velocity into the ramp
-                    this.playerBody.velocity.x = 0;
-                    this.playerBody.velocity.z = 0;
+                    
+                    // Kill horizontal velocity to prevent sticking/rubbing accumulation
+                    // Project velocity onto the ramp wall plane (remove normal component)
+                    // Ramp side normal is roughly local X axis rotated by yaw.
+                    const normX = signX * cos;
+                    const normZ = signX * -sin;
+                    const dot = this.playerBody.velocity.x * normX + this.playerBody.velocity.z * normZ;
+                    if (dot < 0) { // Only remove velocity moving INTO the wall
+                        this.playerBody.velocity.x -= dot * normX;
+                        this.playerBody.velocity.z -= dot * normZ;
+                    }
                 }
             }
         }
 
         // Grounding based on terrain height (keep capsule firmly on top of surfaces)
+        // Pass current foot position (y - radius) so getTerrainHeight can filter overhead platforms
+        const currentFeetY = this.playerBody.position.y - this.playerRadius;
         const terrainHeight = this.getTerrainHeight(
             this.playerBody.position.x,
-            this.playerBody.position.z
+            this.playerBody.position.z,
+            currentFeetY
         );
         const radius = this.playerRadius;
         
-        // Only ground if the ground is relatively close underneath (prevent snapping to sky)
-        // or if we are clearly above it falling down
         const groundY = terrainHeight + radius;
         const diffY = groundY - this.playerBody.position.y;
 
-        // If terrain is way above us (> 2.0), getTerrainHeight picked up a bridge overhead. Ignore it.
-        // But getTerrainHeight returns max height. This is tricky.
-        // We assume wall collision handled the lateral movement into the high ground.
-        // So if we are here, we are either on top or under.
+        // Ground snapping logic
+        // We only snap up if the target ground is close enough above/below.
+        // The getTerrainHeight filter handles ceilings, but we still check diffY logic for smoothness.
         
-        if (this.playerBody.position.y > terrainHeight - 2.0) {
-             // We are above or slightly inside top
-             // Hard clamp if we ever sink significantly into the terrain
-            if (this.playerBody.position.y < groundY - 0.1) {
-                this.playerBody.position.y = groundY + 0.02;
+        const snapThreshold = 1.8; // Max step up/down distance to snap
+        if (Math.abs(diffY) < snapThreshold) {
+             // We are close to a valid ground surface
+             
+             // If sinking into ground
+            if (this.playerBody.position.y < groundY - 0.05) {
+                // Hard snap up to prevent falling through
+                this.playerBody.position.y = groundY;
                 if (this.playerBody.velocity.y < 0) {
                     this.playerBody.velocity.y = 0;
                 }
             } else if (diffY > 0.001) {
-                // Step up smoothly when walking up ramps / onto flat-tops
-                const stepSpeed = 15; // Faster step up for responsiveness
+                // Step up smoothly
+                const stepSpeed = 20; 
                 const step = Math.min(diffY, stepSpeed * dt);
                 this.playerBody.position.y += step;
+                // Kill downward velocity if stepping up
                 if (this.playerBody.velocity.y < 0) {
                     this.playerBody.velocity.y = 0;
                 }
@@ -7328,9 +8269,13 @@ export class Game {
         // Base lava: 20 DPS; each next tier multiplies DPS by 10 (tier1=20, tier2=200, tier3=2000, ...)
         const onLava = this.isLava(this.playerBody.position.x, this.playerBody.position.z);
         if (onLava) {
-            this.lavaDamageTimer += dt;
-            // Compute DPS according to current tier (defensive clamp to avoid negative tiers)
-            const baseLavaDps = 20;
+            // No lava damage in Pantheon Creative
+            if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
+                this.lavaDamageTimer = 0;
+            } else {
+                this.lavaDamageTimer += dt;
+                // Compute DPS according to current tier (defensive clamp to avoid negative tiers)
+                const baseLavaDps = 20;
             const tierMultiplier = Math.pow(10, Math.max(0, (this.tier || 1) - 1));
             const lavaDps = baseLavaDps * tierMultiplier;
 
@@ -7363,20 +8308,24 @@ export class Game {
 
                 this.lavaDamageTimer -= 1.0;
             }
+            } // End of else block for pantheon creative check
 
             // If you fall down into the lava void, land on a lava floor that bounces you back up
             if (this.playerBody.position.y <= this.lavaGroundY + this.playerRadius + 0.05 && this.playerBody.velocity.y < 0) {
                 this.playerBody.position.y = this.lavaGroundY + this.playerRadius + 0.05;
                 this.playerBody.velocity.y = 26;
-                // Extra impact damage on the hard lava floor - apply directly as well
-                const impactDmg = 8;
-                this.playerHealth -= impactDmg;
-                if (this.healthBar) this.healthBar.style.width = (Math.max(0, this.playerHealth) / this.maxHealth * 100) + '%';
-                if (this.healthText) this.healthText.innerText = `${Math.max(0, Math.floor(this.playerHealth))} / ${this.maxHealth}`;
-                try { this.spawnDamageNumber(this.playerMesh.position.clone().add(new THREE.Vector3(0,1.6,0)), Math.round(impactDmg), false); } catch(e){}
-                if (this.playerHealth <= 0) {
-                    this.playerHealth = 0;
-                    this.gameOver();
+                
+                // Only take impact damage if not in Creative
+                if (!(this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE')) {
+                    const impactDmg = 8;
+                    this.playerHealth -= impactDmg;
+                    if (this.healthBar) this.healthBar.style.width = (Math.max(0, this.playerHealth) / this.maxHealth * 100) + '%';
+                    if (this.healthText) this.healthText.innerText = `${Math.max(0, Math.floor(this.playerHealth))} / ${this.maxHealth}`;
+                    try { this.spawnDamageNumber(this.playerMesh.position.clone().add(new THREE.Vector3(0,1.6,0)), Math.round(impactDmg), false); } catch(e){}
+                    if (this.playerHealth <= 0) {
+                        this.playerHealth = 0;
+                        this.gameOver();
+                    }
                 }
             }
         } else {
@@ -7812,9 +8761,8 @@ export class Game {
                 }
             }
 
-            // Boss / Miniboss behavior: choose pattern based on specific miniboss type (unique attacks) or main boss
+            // Boss / Miniboss behavior
             if (enemy.isBoss) {
-                // ensure boss state fields exist
                 enemy.attackTimer = (enemy.attackTimer || 0) + dt;
                 enemy.teleportCooldown = (enemy.teleportCooldown || 0) - dt;
 
@@ -7822,56 +8770,335 @@ export class Game {
                 const playerPos = new THREE.Vector3().copy(this.playerBody.position);
                 const distToPlayer = origin.distanceTo(playerPos);
 
-                // Distinguish main boss vs miniboss and allow minibosses to have unique attacks
+                // TNS Tier 4 Barkvader Logic
+                if (this.gameMode === 'TNS' && this.tnsTier === 4 && enemy.isMainBoss) {
+                    // Check HP Thresholds for Phases
+                    const hpRatio = enemy.hp / enemy.maxHp;
+                    
+                    // Trigger Shield Phases (75%, 50%, 25%)
+                    // Only trigger if not already shielded and in a fight phase
+                    if (!enemy.isShielded) {
+                        if ((hpRatio <= 0.75 && this.tnsPhase === 1) || 
+                            (hpRatio <= 0.50 && this.tnsPhase === 3) || 
+                            (hpRatio <= 0.25 && this.tnsPhase === 5)) {
+                            
+                            // Activate Shield
+                            this.tnsPhase++; // 2, 4, 6
+                            enemy.isShielded = true;
+                            this.showToast("BARKVADER SHIELDS UP! KILL CHADBARK!");
+                            
+                            // Rise up
+                            enemy.body.position.y += 10;
+                            enemy.mesh.position.y += 10;
+                            
+                            // Visual Shield
+                            if(!enemy.shieldMesh) {
+                                const s = new THREE.Mesh(new THREE.SphereGeometry(3, 16, 16), new THREE.MeshBasicMaterial({color:0x00ffff, transparent:true, opacity:0.3, wireframe:true}));
+                                enemy.mesh.add(s);
+                                enemy.shieldMesh = s;
+                            }
+                            enemy.shieldMesh.visible = true;
+                            
+                            // Spawn Chadbark Miniboss with scaled HP
+                            // Phase 2 (75%): Normal HP. Phase 4 (50%): 2x HP. Phase 6 (25%): 2x HP? User said "Same thing".
+                            const hpMult = (this.tnsPhase === 4 || this.tnsPhase === 6) ? 2.0 : 1.0;
+                            const chadbarkHp = 15000 * hpMult; 
+                            // Spawn Chadbark specifically. Use Miniboss spawner with custom type?
+                            // Let's reuse 'JOHN_PORK' visual but name it Chadbark
+                            this.spawnMiniboss('JOHN_PORK', chadbarkHp);
+                            const cb = this.bossEnemy; // The newly spawned miniboss
+                            if (cb) {
+                                cb.name = "Chadbark";
+                                cb.isChadbark = true; // Mark him
+                                this.bossEnemy = enemy; // Restore Barkvader as main boss ref, stick Chadbark in enemies list
+                                // Need to ensure Chadbark is treated as a separate boss entity
+                                // Actually spawnMiniboss sets this.bossEnemy. We need to preserve Barkvader reference.
+                                // We have 'enemy' as Barkvader here.
+                            }
+                            
+                            // Resume spawns
+                            this.spawnRateMultiplier = 2.0;
+                        }
+                    } else {
+                        // Check if Chadbark is dead
+                        const chadbarkAlive = this.enemies.some(e => e.isChadbark);
+                        if (!chadbarkAlive) {
+                            // Break Shield
+                            enemy.isShielded = false;
+                            this.tnsPhase++; // 3, 5, 7
+                            this.showToast("SHIELD BROKEN!");
+                            
+                            // Drop down
+                            enemy.body.position.y -= 10;
+                            enemy.mesh.position.y -= 10;
+                            if(enemy.shieldMesh) enemy.shieldMesh.visible = false;
+                            
+                            // Clear minions
+                            this.enemies.forEach(e => {
+                                if(!e.isBoss) this.despawnEnemy(e);
+                            });
+                            this.spawnRateMultiplier = 0; // Stop spawns during boss duel
+                        }
+                    }
+                    
+                    // Invincibility handling in damageEnemy (add check there)
+                }
+
                 if (enemy.isMainBoss) {
-                    // Main boss: pitchfork volleys (existing behavior)
-                    const attackInterval = 1.2;
-                    if (enemy.attackTimer >= attackInterval) {
-                        enemy.attackTimer = 0;
-                        for (let i = -1; i <= 1; i++) {
+                    if (enemy.name === 'Babybark') {
+                        // BABYBARK: Simple Acorn Shot
+                        const attackInterval = 2.0;
+                        if (enemy.attackTimer >= attackInterval) {
+                            enemy.attackTimer = 0;
                             const dir = new THREE.Vector3().subVectors(playerPos, origin).normalize();
-                            const spread = 0.18 * i;
-                            dir.applyAxisAngle(new THREE.Vector3(0,1,0), spread);
-
-                            // Upgraded Pitchfork Volley
-                            const pfGroup = new THREE.Group();
-                            // Larger, glowing Trident shape
-                            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.5), new THREE.MeshStandardMaterial({ color: 0x888888 }));
-                            shaft.rotation.x = Math.PI/2;
-                            pfGroup.add(shaft);
-                            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-                            tip.rotation.x = Math.PI/2;
-                            tip.position.z = 1.2;
-                            pfGroup.add(tip);
                             
-                            // Adjust height to player level so it hits
-                            pfGroup.position.copy(origin);
-                            pfGroup.position.y = playerPos.y + 0.5; // Aim at player height!
-                            pfGroup.lookAt(playerPos);
+                            const acorn = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshStandardMaterial({ color: 0x8D6E63 }));
+                            acorn.position.copy(origin);
+                            acorn.position.y += 1.0;
+                            this.scene.add(acorn);
                             
-                            this.scene.add(pfGroup);
-
                             this.projectiles.push({
-                                mesh: pfGroup,
-                                velocity: dir.multiplyScalar(20),
-                                damage: 40,
-                                life: 5,
+                                mesh: acorn,
+                                velocity: dir.multiplyScalar(15),
+                                damage: 15,
+                                life: 4,
                                 isEnemyProjectile: true
                             });
+                            this.playSound('bonk', 1.5, 0.3);
                         }
-                        this.playSound && this.playSound('boom', 0.9, 0.25);
+                    } else if (enemy.name === 'Smolbark') {
+                        // SMOLBARK: Leaf Volley (3 spread)
+                        const attackInterval = 1.5;
+                        if (enemy.attackTimer >= attackInterval) {
+                            enemy.attackTimer = 0;
+                            const baseDir = new THREE.Vector3().subVectors(playerPos, origin).normalize();
+                            
+                            for(let i=-1; i<=1; i++) {
+                                const dir = baseDir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), i * 0.25);
+                                const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6), new THREE.MeshStandardMaterial({ color: 0x33691E }));
+                                leaf.rotation.x = Math.PI/2;
+                                leaf.position.copy(origin);
+                                leaf.position.y += 1.5;
+                                leaf.lookAt(origin.clone().add(dir));
+                                this.scene.add(leaf);
+                                
+                                this.projectiles.push({
+                                    mesh: leaf,
+                                    velocity: dir.multiplyScalar(18),
+                                    damage: 20,
+                                    life: 4,
+                                    isEnemyProjectile: true
+                                });
+                            }
+                            this.playSound('slice', 1.2, 0.3);
+                        }
+                    } else if (enemy.name === 'Chadbark') {
+                        // CHADBARK: Mix of Charge and Log Throw
+                        if (enemy.chargeTimer === undefined) enemy.chargeTimer = 0;
+                        enemy.chargeTimer += dt;
+                        
+                        if (enemy.chargeTimer > 4.0) {
+                            // CHARGE ATTACK
+                            const dir = new THREE.Vector3().subVectors(playerPos, origin).normalize();
+                            enemy.body.position.x += dir.x * 12.0; // Big lunge
+                            enemy.body.position.z += dir.z * 12.0;
+                            this.particleSystem.emit(enemy.mesh.position.clone(), 0x5D4037, 30);
+                            this.playSound('boom', 0.8, 0.5);
+                            this.screenShake = 0.5;
+                            
+                            // AOE Slam at destination
+                            if (playerPos.distanceTo(enemy.mesh.position) < 5.0) {
+                                this.takeDamage(30);
+                            }
+                            enemy.chargeTimer = 0;
+                            enemy.attackTimer = 0; // reset projectile timer
+                        } else {
+                            // LOG THROW
+                            const attackInterval = 1.8;
+                            if (enemy.attackTimer >= attackInterval) {
+                                enemy.attackTimer = 0;
+                                const dir = new THREE.Vector3().subVectors(playerPos, origin).normalize();
+                                const log = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.0), new THREE.MeshStandardMaterial({ color: 0x3E2723 }));
+                                log.rotation.x = Math.PI/2; // sideways log? No, missile log.
+                                log.rotation.z = Math.PI/2; // Horizontal log spinning?
+                                log.position.copy(origin);
+                                log.position.y += 2.0;
+                                this.scene.add(log);
+                                
+                                this.projectiles.push({
+                                    mesh: log,
+                                    velocity: dir.multiplyScalar(22),
+                                    damage: 35,
+                                    life: 5,
+                                    isEnemyProjectile: true
+                                });
+                                this.playSound('bonk', 0.6, 0.4);
+                            }
+                        }
+                    } else if (enemy.name === 'Barkvader') {
+                        // BARKVADER: 4 Attacks
+                        if (enemy.bvPhase === undefined) enemy.bvPhase = 0;
+                        if (enemy.bvTimer === undefined) enemy.bvTimer = 0;
+                        
+                        enemy.bvTimer += dt;
+                        
+                        // Attack cooldown varies by phase
+                        const cooldowns = [2.5, 3.0, 4.0, 3.0];
+                        if (enemy.bvTimer >= cooldowns[enemy.bvPhase]) {
+                            enemy.bvTimer = 0;
+                            
+                            // Execute Attack based on Phase
+                            if (enemy.bvPhase === 0) {
+                                // 1. LIGHTSABER THROW (Boomerang)
+                                const dir = new THREE.Vector3().subVectors(playerPos, origin).normalize();
+                                const saber = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.0), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+                                saber.rotation.x = Math.PI/2;
+                                saber.position.copy(origin);
+                                saber.position.y += 2.0;
+                                this.scene.add(saber);
+                                
+                                this.projectiles.push({
+                                    mesh: saber,
+                                    velocity: dir.multiplyScalar(28),
+                                    damage: 40,
+                                    life: 5,
+                                    isEnemyProjectile: true,
+                                    isBoomerang: true,
+                                    returnState: 0,
+                                    owner: enemy.mesh,
+                                    hitIds: []
+                                });
+                                this.playSound('slice', 0.5, 0.5);
+                                this.showToast("Barkvader throws his saber!");
+                            } else if (enemy.bvPhase === 1) {
+                                // 2. FORCE LIGHTNING (Rapid Fire)
+                                const count = 8;
+                                for(let k=0; k<count; k++) {
+                                    setTimeout(() => {
+                                        if(!this.isPlaying || !enemy.mesh) return; // safety
+                                        // Recalc player pos
+                                        const currP = this.playerBody.position.clone();
+                                        const currO = enemy.mesh.position.clone();
+                                        const d = new THREE.Vector3().subVectors(currP, currO).normalize();
+                                        // Add spread
+                                        d.applyAxisAngle(new THREE.Vector3(0,1,0), (Math.random()-0.5)*0.3);
+                                        
+                                        const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0xaa00ff })); // Purple lightning? Or Red? Barkvader -> Red.
+                                        bolt.material.color.setHex(0xff0000);
+                                        bolt.position.copy(currO);
+                                        bolt.position.y += 2.5;
+                                        this.scene.add(bolt);
+                                        
+                                        this.projectiles.push({
+                                            mesh: bolt,
+                                            velocity: d.multiplyScalar(35),
+                                            damage: 15,
+                                            life: 3,
+                                            isEnemyProjectile: true
+                                        });
+                                        this.playSynth('shoot', 2.0, 0.2);
+                                    }, k * 100);
+                                }
+                            } else if (enemy.bvPhase === 2) {
+                                // 3. DARK SIDE BURST (360 Radial)
+                                const count = 24;
+                                for(let k=0; k<count; k++) {
+                                    const angle = (k/count) * Math.PI * 2;
+                                    const d = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+                                    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0x330000 }));
+                                    ball.position.copy(origin);
+                                    ball.position.y += 1.0;
+                                    this.scene.add(ball);
+                                    this.projectiles.push({
+                                        mesh: ball,
+                                        velocity: d.multiplyScalar(15),
+                                        damage: 30,
+                                        life: 6,
+                                        isEnemyProjectile: true
+                                    });
+                                }
+                                this.playSound('boom', 0.4, 0.6);
+                                this.screenShake = 0.4;
+                            } else if (enemy.bvPhase === 3) {
+                                // 4. FORCE CRUSH (Ground Eruption under player)
+                                const target = playerPos.clone();
+                                // Telegraph
+                                const marker = new THREE.Mesh(new THREE.RingGeometry(0.5, 3.5, 32), new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
+                                marker.rotation.x = -Math.PI/2;
+                                marker.position.copy(target);
+                                marker.position.y = this.getTerrainHeight(target.x, target.z) + 0.1;
+                                this.scene.add(marker);
+                                
+                                setTimeout(() => {
+                                    this.scene.remove(marker);
+                                    // Explode
+                                    this.particleSystem.emit(target, 0xff0000, 50);
+                                    this.playSound('boom', 0.8, 0.8);
+                                    // Check damage
+                                    const pNow = this.playerBody.position;
+                                    if (pNow.distanceTo(target) < 3.5) {
+                                        this.takeDamage(50);
+                                        // Knockback
+                                        this.playerBody.velocity.y = 15;
+                                    }
+                                }, 1200); // 1.2s delay
+                            }
+                            
+                            // Advance Phase
+                            enemy.bvPhase = (enemy.bvPhase + 1) % 4;
+                        }
+                    } else {
+                        // DEFAULT GATEKEEPER
+                        const attackInterval = 1.2;
+                        if (enemy.attackTimer >= attackInterval) {
+                            enemy.attackTimer = 0;
+                            for (let i = -1; i <= 1; i++) {
+                                const dir = new THREE.Vector3().subVectors(playerPos, origin).normalize();
+                                const spread = 0.18 * i;
+                                dir.applyAxisAngle(new THREE.Vector3(0,1,0), spread);
+
+                                // Upgraded Pitchfork Volley
+                                const pfGroup = new THREE.Group();
+                                // Larger, glowing Trident shape
+                                const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.5), new THREE.MeshStandardMaterial({ color: 0x888888 }));
+                                shaft.rotation.x = Math.PI/2;
+                                pfGroup.add(shaft);
+                                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+                                tip.rotation.x = Math.PI/2;
+                                tip.position.z = 1.2;
+                                pfGroup.add(tip);
+                                
+                                // Adjust height to player level so it hits
+                                pfGroup.position.copy(origin);
+                                pfGroup.position.y = playerPos.y + 0.5; // Aim at player height!
+                                pfGroup.lookAt(playerPos);
+                                
+                                this.scene.add(pfGroup);
+
+                                this.projectiles.push({
+                                    mesh: pfGroup,
+                                    velocity: dir.multiplyScalar(20),
+                                    damage: 40,
+                                    life: 5,
+                                    isEnemyProjectile: true
+                                });
+                            }
+                            this.playSound && this.playSound('boom', 0.9, 0.25);
+                        }
                     }
 
                     // Teleport if too far (keep boss engaging)
-                    if (distToPlayer > 14 && (enemy.teleportCooldown === undefined || enemy.teleportCooldown <= 0)) {
+                    // Barkvader has his own movement logic or can share this? 
+                    // Let's allow teleport for all bosses to avoid stuckness.
+                    if (distToPlayer > 25 && (enemy.teleportCooldown === undefined || enemy.teleportCooldown <= 0)) {
                         this.teleportEnemyNearPlayer(enemy);
                         enemy.teleportCooldown = 8.0;
                     }
                 } else {
                     // Miniboss unique attacks based on name/type
                     const atk = (enemy.name || '').toLowerCase();
-                    // JOHN_PORK: charge lunge after wind-up
-                    if (atk.includes('john pork')) {
+                    // JOHN_PORK / CHADBARK: charge lunge after wind-up
+                    if (atk.includes('john pork') || atk.includes('chadbark')) {
                         enemy.chargeTimer = (enemy.chargeTimer || 0) + dt;
                         const windUp = 1.1;
                         if (enemy.chargeTimer >= windUp) {
@@ -8171,14 +9398,6 @@ export class Game {
                 // In Survival mode, sync win
                 if (this.gameMode === 'SURVIVAL' && this.room) {
                     this.room.send({ type: 'boss_defeated' });
-                }
-                
-                // TNS: Instant Win on boss death
-                if (this.gameMode === 'TNS') {
-                    this.showToast("SCRIPTED VICTORY!");
-                    setTimeout(() => this.winGame(), 2000);
-                    this.bossEnemy = null;
-                    return;
                 }
                 
                 // Activate the portal visuals
@@ -9587,6 +10806,15 @@ export class Game {
 
     // Teleport / respawn helper: bring the player back to a safe start location
     respawnPlayer() {
+        // In Creative Pantheon, just reset to 0,10,0 or starting plat
+        if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
+            this.playerBody.position.set(0, 10, 0);
+            this.playerBody.velocity.set(0,0,0);
+            if(this.playerMesh) this.playerMesh.position.set(0, 10, 0);
+            this.isFlying = false;
+            return;
+        }
+
         if (!this.spawnPoint) {
             // fallback spawn
             this.spawnPoint = new THREE.Vector3(0, this.getTerrainHeight(0,0) + this.playerRadius + 0.05, 0);
@@ -10013,7 +11241,20 @@ export class Game {
             const minutes = Math.floor(totalRemaining / 60);
             const seconds = totalRemaining % 60;
             display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        } else if (this.gameMode === 'TNS') {
+            // TNS Tier 4 Warmup Countdown
+            if (this.tnsTier === 4 && this.tnsPhase === 0) {
+                const warmupLeft = Math.max(0, Math.ceil(this.tnsWarmupDuration - this.tnsTimer));
+                display = `BOSS IN: ${warmupLeft}s`;
+            } else {
+                // Standard elapsed
+                const totalElapsed = Math.floor(this.gameTime);
+                const minutes = Math.floor(totalElapsed / 60);
+                const seconds = totalElapsed % 60;
+                display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
         } else {
+            // Overtime / Pantheon
             const totalElapsed = Math.floor(this.gameTime);
             const minutes = Math.floor(totalElapsed / 60);
             const seconds = totalElapsed % 60;
@@ -10331,7 +11572,8 @@ export class Game {
         requestAnimationFrame(() => this.animate());
 
         const now = performance.now();
-        const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+        let dt = Math.min((now - this.lastTime) / 1000, 0.1);
+        if (this.timeScale) dt *= this.timeScale; // Pantheon time control
         this.lastTime = now;
 
         // Portal intro sequence runs before the main game loop kicks in
@@ -10449,12 +11691,20 @@ export class Game {
                 }
 
                 // If portal has been activated, entering it still triggers win/transition
-                if (this.bossPortalActivated) {
+                if (this.bossPortalActivated && !this.victoryTriggered) {
+                    // Ensure portal visual is visible if activated
+                    if (this.bossPortal && this.bossPortal.visuals && !this.bossPortal.visuals.visible) {
+                        this.bossPortal.visuals.visible = true;
+                    }
+                    
                     const p = new THREE.Vector3().copy(this.playerBody.position);
-                    const distToPortal = p.distanceTo(this.bossPortal.position);
-                    if (distToPortal < 3.0) {
-                        this.winGame();
-                        return;
+                    // Defensive check in case bossPortal was removed
+                    if (this.bossPortal && this.bossPortal.position) {
+                        const distToPortal = p.distanceTo(this.bossPortal.position);
+                        if (distToPortal < 3.0) {
+                            this.winGame();
+                            return;
+                        }
                     }
                 }
 
@@ -10554,7 +11804,10 @@ export class Game {
             }
 
             // Spawn enemies
-            if (this.gameMode === 'AWAKENING') {
+            // Pantheon: No auto-spawns unless toggled (which requires UI we haven't built, so off by default)
+            if (this.gameMode === 'PANTHEON' && !this.pantheonSpawning) {
+                // Do nothing
+            } else if (this.gameMode === 'AWAKENING') {
                 // Awakening Mode: Only debuffed Ghosts spawn naturally
                 this.spawnTimer += dt;
                 if (this.spawnTimer >= 3.0) { // Slower spawn rate
@@ -10654,15 +11907,29 @@ export class Game {
             }
 
             // Main Boss spawning near portal if close
-            // TNS Tier 4: Boss spawns immediately (handled below) or by proximity if we want.
-            // Let's force spawn Barkvader in TNS Tier 4 if not present
-            if (this.gameMode === 'TNS' && this.tnsTier === 4 && !this.bossEnemy && !this.bossPortalActivated) {
-                 this.createBoss(true); // Barkvader
+            // TNS Tier 4 Logic (handled by timer, no portal proximity needed)
+            if (this.gameMode === 'TNS' && this.tnsTier === 4 && !this.bossPortalActivated) {
+                // Phase 0: Warmup
+                if (this.tnsPhase === 0) {
+                    this.tnsTimer += dt;
+                    if (this.tnsTimer >= this.tnsWarmupDuration) {
+                        this.tnsPhase = 1;
+                        this.createBoss(true); // Spawn Barkvader
+                        this.showToast("BARKVADER HAS ARRIVED!");
+                        this.playSound('boom', 0.5, 1.0);
+                    }
+                }
+                // Boss Logic in updateEnemies handles Phases 2+
             }
             
-            if (!this.bossEnemy && this.bossPortal && !this.bossPortalActivated) {
+            // General Boss Spawn by Proximity (Arcade, Awakening, TNS Tiers 1-3)
+            // Explicitly allow TNS (except Tier 4) to spawn via proximity
+            const allowProximitySpawn = (this.gameMode !== 'TNS') || (this.gameMode === 'TNS' && this.tnsTier < 4);
+
+            if (allowProximitySpawn && !this.bossEnemy && this.bossPortal && !this.bossPortalActivated) {
                 const distToPortal = new THREE.Vector3().copy(this.playerBody.position).distanceTo(this.bossPortal.position);
-                if (distToPortal < 15) {
+                // Increased range to 30 so it's easier to trigger
+                if (distToPortal < 30) {
                     this.createBoss(true); // Main Boss
                 }
             }
