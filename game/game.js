@@ -410,19 +410,21 @@ export class Game {
         this.secretNote = null;
         this.runFoundSecretNote = false;
         
-        // Textures
+        // Textures - with error callbacks for debugging
         const texLoader = new THREE.TextureLoader();
-        this.grassTex = texLoader.load('/a-texture-for-grass.jpg');
+        const onTexError = (url) => (err) => console.error(`Failed to load texture ${url}:`, err);
+
+        this.grassTex = texLoader.load(encodeURI('/a-texture-for-grass.jpg'), undefined, undefined, onTexError('/a-texture-for-grass.jpg'));
         this.grassTex.wrapS = THREE.RepeatWrapping; this.grassTex.wrapT = THREE.RepeatWrapping;
         this.grassTex.repeat.set(4, 4);
         this.grassTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.sideTex = texLoader.load('/side.jpg');
+        this.sideTex = texLoader.load(encodeURI('/side.jpg'), undefined, undefined, onTexError('/side.jpg'));
         this.sideTex.wrapS = THREE.RepeatWrapping; this.sideTex.wrapT = THREE.RepeatWrapping;
         this.sideTex.repeat.set(2, 1);
         this.sideTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.rockTex = texLoader.load('/texture-for-grey-rock.jpg');
+        this.rockTex = texLoader.load(encodeURI('/texture-for-grey-rock.jpg'), undefined, undefined, onTexError('/texture-for-grey-rock.jpg'));
         this.rockTex.wrapS = THREE.RepeatWrapping; this.rockTex.wrapT = THREE.RepeatWrapping;
         this.rockTex.repeat.set(6, 6);
         this.rockTex.colorSpace = THREE.SRGBColorSpace;
@@ -1551,11 +1553,19 @@ export class Game {
 
     async loadSound(url, name) {
         try {
-            const response = await fetch(url);
+            const encodedUrl = encodeURI(url);
+            const response = await fetch(encodedUrl);
+            if (!response.ok) {
+                console.error(`Failed to load sound ${url}: ${response.status} ${response.statusText}`);
+                return null;
+            }
             const arrayBuffer = await response.arrayBuffer();
             this.sounds[name] = await this.audioCtx.decodeAudioData(arrayBuffer);
             return this.sounds[name];
-        } catch(e) {}
+        } catch(e) {
+            console.error(`Error loading sound ${url}:`, e);
+            return null;
+        }
     }
 
     playSound(name, pitch = 1.0, volume = 1.0) {
