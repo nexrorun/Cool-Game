@@ -9,6 +9,48 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { ParticleSystem, XPOrb, randomRange, SeededRandom } from './utils.js';
 
+// Fallback color texture generator
+function createColorTexture(color, width = 64, height = 64) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+}
+
+// Load texture with fallback color - returns fallback immediately, swaps in real texture on success
+function loadTextureWithFallback(url, fallbackColor, repeatX = 1, repeatY = 1) {
+    // Start with fallback texture
+    const fallback = createColorTexture(fallbackColor);
+    fallback.repeat.set(repeatX, repeatY);
+    fallback.fallbackColor = fallbackColor;
+
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+        encodeURI(url),
+        // onLoad - texture loaded successfully, copy image to fallback
+        (loadedTex) => {
+            console.log(`Texture loaded: ${url}`);
+            fallback.image = loadedTex.image;
+            fallback.needsUpdate = true;
+        },
+        // onProgress
+        undefined,
+        // onError - keep fallback
+        (err) => {
+            console.warn(`Failed to load texture ${url}, using fallback color ${fallbackColor}`);
+        }
+    );
+
+    return fallback;
+}
+
 const RARITIES = {
 
     COMMON: { name: "Common", color: 0xaaaaaa, mult: 1.0, chance: 0.50 },
@@ -410,24 +452,11 @@ export class Game {
         this.secretNote = null;
         this.runFoundSecretNote = false;
         
-        // Textures - with error callbacks for debugging
-        const texLoader = new THREE.TextureLoader();
-        const onTexError = (url) => (err) => console.error(`Failed to load texture ${url}:`, err);
-
-        this.grassTex = texLoader.load(encodeURI('/a-texture-for-grass.jpg'), undefined, undefined, onTexError('/a-texture-for-grass.jpg'));
-        this.grassTex.wrapS = THREE.RepeatWrapping; this.grassTex.wrapT = THREE.RepeatWrapping;
-        this.grassTex.repeat.set(4, 4);
-        this.grassTex.colorSpace = THREE.SRGBColorSpace;
-
-        this.sideTex = texLoader.load(encodeURI('/side.jpg'), undefined, undefined, onTexError('/side.jpg'));
-        this.sideTex.wrapS = THREE.RepeatWrapping; this.sideTex.wrapT = THREE.RepeatWrapping;
-        this.sideTex.repeat.set(2, 1);
-        this.sideTex.colorSpace = THREE.SRGBColorSpace;
-
-        this.rockTex = texLoader.load(encodeURI('/texture-for-grey-rock.jpg'), undefined, undefined, onTexError('/texture-for-grey-rock.jpg'));
-        this.rockTex.wrapS = THREE.RepeatWrapping; this.rockTex.wrapT = THREE.RepeatWrapping;
-        this.rockTex.repeat.set(6, 6);
-        this.rockTex.colorSpace = THREE.SRGBColorSpace;
+        // Textures - with color fallbacks if loading fails
+        // Grass = green, Side = brown, Rock = grey
+        this.grassTex = loadTextureWithFallback('/a-texture-for-grass.jpg', '#228B22', 4, 4);
+        this.sideTex = loadTextureWithFallback('/side.jpg', '#8B4513', 2, 1);
+        this.rockTex = loadTextureWithFallback('/texture-for-grey-rock.jpg', '#808080', 6, 6);
         
         // Stats - Speed boosted by 1.5x as requested
         const baseFireRate = this.characterConfig ? this.characterConfig.fireRate : 0.8;
@@ -1576,17 +1605,15 @@ export class Game {
             const source = this.audioCtx.createBufferSource();
             source.buffer = this.sounds[name];
             source.playbackRate.value = pitch;
-            
+
             const gain = this.audioCtx.createGain();
             gain.gain.value = volume;
-            
+
             source.connect(gain);
             gain.connect(this.audioCtx.destination);
             source.start(0);
-        } else {
-            // Fallback to synth if file not loaded
-            this.playSynth(name, pitch, volume);
         }
+        // Silent fallback - do nothing if sound not loaded
     }
 
     playSynth(type, pitch = 1.0, volume = 1.0) {
