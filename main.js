@@ -55,7 +55,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let room = null;
     let lobbyTimer = null;
     let selectedCharacter = 'MMOOVT';
-    let selectedMode = 'ARCADE'; // 'ARCADE' | 'AWAKENING' | 'MULTI'
+    let selectedMode = 'ARCADE'; // 'ARCADE' | 'AWAKENING' | 'TNS' | 'PANTHEON'
     // pixelateEnabled already declared earlier for the bottom pixel toggle; do not redeclare here.
     let useCharacterTheme = false;
     let menuScene = null;
@@ -68,10 +68,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const themeToggleContainer = document.getElementById('theme-toggle-container');
     const modeHelperText = document.getElementById('mode-helper-text');
 
-    // Multiplayer unlock flag: earned by beating Tier 1 in Classic (Arcade).
-    function isMultiplayerUnlocked() {
-        try { return !!localStorage.getItem('uberthump_multiplayer_unlocked'); } catch (e) { return false; }
-    }
     // TNS Unlock: Requires Calcium
     function isTNSUnlocked() {
         return isCharacterUnlocked('CALCIUM');
@@ -85,21 +81,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function updateGamemodeSelectState() {
         if (!modeSelect) return;
-        const multiOption = Array.from(modeSelect.options).find(o => o.value === 'MULTI');
         const tnsOption = Array.from(modeSelect.options).find(o => o.value === 'TNS');
         const panOption = Array.from(modeSelect.options).find(o => o.value === 'PANTHEON');
-        
-        const mpUnlocked = isMultiplayerUnlocked();
+
         const tnsUnlocked = isTNSUnlocked();
         const panUnlocked = isPantheonUnlocked();
 
-        if (multiOption) {
-            multiOption.disabled = !mpUnlocked;
-            if (!mpUnlocked && modeSelect.value === 'MULTI') {
-                modeSelect.value = 'ARCADE';
-                selectedMode = 'ARCADE';
-            }
-        }
         if (tnsOption) {
             tnsOption.disabled = !tnsUnlocked;
             if (!tnsUnlocked && modeSelect.value === 'TNS') {
@@ -119,10 +106,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (modeHelperText) {
             modeHelperText.style.display = 'block';
-            if (modeSelect.value === 'MULTI' && !mpUnlocked) {
-                modeHelperText.style.color = '#ff4444';
-                modeHelperText.textContent = 'Multiplayer unlocks after beating Tier 1 in CLASSIC.';
-            } else if (!tnsUnlocked && modeSelect.value === 'TNS') {
+            if (!tnsUnlocked && modeSelect.value === 'TNS') {
                  modeHelperText.style.color = '#ff4444';
                  modeHelperText.textContent = 'Unlock CALCIUM to play Story Mode.';
             } else if (modeSelect.value === 'PANTHEON' && !panUnlocked) {
@@ -339,21 +323,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (menuScene) menuScene.setPreviewCharacter('MMOOVT');
                 if (selectionHeader) selectionHeader.style.display = 'none';
                 
-            } else if (selectedMode === 'MULTI') {
-                // Multiplayer: triggers lobby flow when START is pressed.
-                charSelectGrid.style.display = 'none'; 
-                if (charDetailsEl) charDetailsEl.style.display = 'none';
-                
-                if (pixelToggleBottom) {
-                    pixelToggleBottom.checked = true;
-                    pixelToggleBottom.disabled = true;
-                    pixelateEnabled = true;
-                    if (menuScene && typeof menuScene.setPixelMode === 'function') menuScene.setPixelMode(true);
-                }
-                awakeningMsg.style.display = 'block';
-                awakeningMsg.textContent = 'MULTIPLAYER: 1v1 duel after looting. Monsters give double coins/xp.';
-                if (selectionHeader) selectionHeader.style.display = 'none';
-
             } else if (selectedMode === 'TNS') {
                 // Totally Not Scripted (Story Mode)
                 // Hide character grid initially - user selects character AFTER choosing a save slot
@@ -1781,7 +1750,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     updateCharacterLocks();
-    // Initialize gamemode select state (including multiplayer lock)
+    // Initialize gamemode select state
     try { updateGamemodeSelectState(); } catch (e) {}
 
     window.__uberthump_unlockAll = function () {
@@ -1798,12 +1767,20 @@ window.addEventListener('DOMContentLoaded', () => {
     async function loadSound(url) {
         if(soundCache[url]) return soundCache[url];
         try {
-            const res = await fetch(url);
+            const encodedUrl = encodeURI(url);
+            const res = await fetch(encodedUrl);
+            if (!res.ok) {
+                console.error(`Failed to load sound ${url}: ${res.status} ${res.statusText}`);
+                return null;
+            }
             const buff = await res.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(buff);
             soundCache[url] = audioBuffer;
             return audioBuffer;
-        } catch(e) { console.error("Audio load error", url); }
+        } catch(e) {
+            console.error("Audio load error", url, e);
+            return null;
+        }
     }
 
     // Preload themes
@@ -2058,16 +2035,7 @@ window.addEventListener('DOMContentLoaded', () => {
             
             // Play Theme snippet - DISABLED for selection
             // playThemeSnippet(key);
-            
-            // Broadcast selection if in MP lobby phase
-            if (room && selectedMode === 'MULTI') {
-                room.updatePresence({
-                    mpChar: selectedCharacter,
-                    mpReady: mpMeReady, // preserve ready state
-                    matchId: mpMatchId
-                });
-            }
-            
+
             if(game && game.playSynth) {
                 game.playSynth('ui');
             }
@@ -2122,13 +2090,12 @@ window.addEventListener('DOMContentLoaded', () => {
             // Apply to Menu
             if (menuScene) {
                 if (modeSelect && modeSelect.value === 'AWAKENING') menuScene.setPixelMode(true);
-                else if (modeSelect && modeSelect.value === 'MULTI') menuScene.setPixelMode(true);
                 else menuScene.setPixelMode(pixelateEnabled);
             }
-            
+
             // Apply to Game
             if (game) {
-                if (game.gameMode === 'AWAKENING' || game.gameMode === 'MULTI') game.setPixelMode(true);
+                if (game.gameMode === 'AWAKENING') game.setPixelMode(true);
                 else game.setPixelMode(pixelateEnabled);
             }
         });
@@ -2221,19 +2188,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
             // Texture Loading
             const texLoader = new THREE.TextureLoader();
-            this.grassTex = texLoader.load('/a-texture-for-grass.jpg');
-            this.grassTex.wrapS = THREE.RepeatWrapping; 
+            const onTexError = (url) => (err) => console.error(`Failed to load texture ${url}:`, err);
+
+            this.grassTex = texLoader.load(encodeURI('/a-texture-for-grass.jpg'), undefined, undefined, onTexError('/a-texture-for-grass.jpg'));
+            this.grassTex.wrapS = THREE.RepeatWrapping;
             this.grassTex.wrapT = THREE.RepeatWrapping;
             this.grassTex.repeat.set(4, 4);
             this.grassTex.colorSpace = THREE.SRGBColorSpace;
 
-            this.sideTex = texLoader.load('/side.jpg');
+            this.sideTex = texLoader.load(encodeURI('/side.jpg'), undefined, undefined, onTexError('/side.jpg'));
             this.sideTex.wrapS = THREE.RepeatWrapping;
             this.sideTex.wrapT = THREE.RepeatWrapping;
             this.sideTex.repeat.set(2, 1);
             this.sideTex.colorSpace = THREE.SRGBColorSpace;
-            
-            this.rockTex = texLoader.load('/texture-for-grey-rock.jpg');
+
+            this.rockTex = texLoader.load(encodeURI('/texture-for-grey-rock.jpg'), undefined, undefined, onTexError('/texture-for-grey-rock.jpg'));
             this.rockTex.wrapS = THREE.RepeatWrapping;
             this.rockTex.wrapT = THREE.RepeatWrapping;
             this.rockTex.colorSpace = THREE.SRGBColorSpace;
@@ -2990,8 +2959,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape' || e.key === 'Esc') {
             // Only toggle if game is running and not in start screen
             if (game && !game.inIntro && startScreen.style.display === 'none') {
-                // In Multiplayer VS mode, pausing is disabled
-                if (game.gameMode === 'MULTI' && game.allowPause === false) return;
                 togglePause();
                 e.preventDefault();
             }
@@ -3149,12 +3116,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     startBtn.addEventListener('click', (e) => {
-        // Intercept MULTI to open browser instead of random match
-        if (selectedMode === 'MULTI') {
-            openBrowser();
-            return;
-        }
-
         // Intercept TNS
         if (selectedMode === 'TNS') {
             // If we are in the "Pick Character for New Save" phase
@@ -3326,15 +3287,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
         // Override mode from settings if provided
         let mode = selectedMode || 'ARCADE';
-        if (lobbySettings && lobbySettings.mode) {
-            mode = lobbySettings.mode; // PVP or SURVIVAL
-        }
-        // Map Lobby 'PVP' back to internal 'MULTI' if needed, or keep distinct?
-        // Internal Game uses 'MULTI' for PVP. 'SURVIVAL' for co-op.
-        if (mode === 'PVP') mode = 'MULTI';
 
-        // Force pixelate for online modes
-        const runPixelate = (mode === 'AWAKENING' || mode === 'MULTI' || mode === 'SURVIVAL') ? true : !!pixelateEnabled;
+        // Force pixelate for Awakening mode
+        const runPixelate = (mode === 'AWAKENING') ? true : !!pixelateEnabled;
 
         setTimeout(() => {
             // Seed logic

@@ -69,116 +69,6 @@
             pointer-events: none;
         }
 
-        #multiplayer-hud {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            display: none;
-            padding: 15px;
-        }
-
-        .mp-panel {
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(4px);
-            padding: 10px;
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            width: 280px;
-        }
-
-        #mp-left {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            align-items: flex-start;
-            border-color: #00ff88;
-        }
-
-        #mp-right {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            align-items: flex-end;
-            text-align: right;
-            border-color: #ff4444;
-        }
-
-        #mp-center {
-            position: absolute;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #ffd700;
-            padding: 5px 15px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 2px 2px 0 #000;
-        }
-
-        .mp-name {
-            font-size: 0.9rem;
-            font-weight: bold;
-            margin-bottom: 2px;
-            text-transform: uppercase;
-            color: #fff;
-        }
-
-        .mp-char-name {
-            font-size: 0.6rem;
-            color: #aaa;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-        }
-
-        .mp-health-wrap {
-            width: 100%;
-            height: 16px;
-            background: #222;
-            border: 1px solid #555;
-            position: relative;
-            margin-bottom: 4px;
-        }
-
-        .mp-health-fill {
-            height: 100%;
-            width: 100%;
-            transition: width 0.2s;
-        }
-
-        .mp-health-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 0.65rem;
-            text-shadow: 1px 1px 0 #000;
-            white-space: nowrap;
-        }
-
-        .mp-stats-row {
-            display: flex;
-            gap: 10px;
-            font-size: 0.65rem;
-            color: #ccc;
-            margin-bottom: 4px;
-        }
-
-        .mp-list {
-            font-size: 0.6rem;
-            color: #ddd;
-            line-height: 1.3;
-            max-height: 150px;
-            overflow: hidden;
-        }
-
         /* Transparent UI style */
         .hud-panel {
             background: rgba(0, 0, 0, 0.4);
@@ -1585,32 +1475,6 @@
 
         <div id="boss-bars-container" style="position:absolute; top:80px; left:50%; transform:translateX(-50%); width: 400px; display:flex; flex-direction:column; gap:8px; pointer-events:none; z-index: 5;"></div>
         
-        <div id="multiplayer-hud">
-            <div id="mp-center">10:00</div>
-            
-            <div id="mp-left" class="mp-panel">
-                <div class="mp-name" id="mp-p1-name">YOU</div>
-                <div class="mp-char-name" id="mp-p1-char">Character</div>
-                <div class="mp-health-wrap">
-                    <div class="mp-health-fill" id="mp-p1-hp-bar" style="background:#00ff88;"></div>
-                    <div class="mp-health-text" id="mp-p1-hp-text">100/100</div>
-                </div>
-                <div class="mp-stats-row" id="mp-p1-stats">LVL 1 | DMG 1.0</div>
-                <div class="mp-list" id="mp-p1-items"></div>
-            </div>
-
-            <div id="mp-right" class="mp-panel">
-                <div class="mp-name" id="mp-p2-name">OPPONENT</div>
-                <div class="mp-char-name" id="mp-p2-char">...</div>
-                <div class="mp-health-wrap">
-                    <div class="mp-health-fill" id="mp-p2-hp-bar" style="background:#ff4444;"></div>
-                    <div class="mp-health-text" id="mp-p2-hp-text">?/?</div>
-                </div>
-                <div class="mp-stats-row" id="mp-p2-stats">LVL ? | DMG ?</div>
-                <div class="mp-list" id="mp-p2-items"></div>
-            </div>
-        </div>
-
         <div id="top-hud">
             <div id="stats-left" class="hud-panel">
                 <div class="stat-row">
@@ -2028,7 +1892,6 @@
                         <select id="mode-select" style="padding:6px 8px; background:#000; color:#fff; border:2px solid #fff; font-family:'Press Start 2P', monospace; font-size:0.6rem; text-transform:uppercase;">
                             <option value="ARCADE">CLASSIC</option>
                             <option value="AWAKENING">AWAKENING THE DEAD</option>
-                            <option value="MULTI">MULTIPLAYER (VS)</option>
                             <option value="TNS">TOTALLY NOT SCRIPTED (STORY)</option>
                             <option value="PANTHEON">PANTHEON (CREATIVE)</option>
                         </select>

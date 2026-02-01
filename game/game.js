@@ -412,17 +412,19 @@ export class Game {
         
         // Textures
         const texLoader = new THREE.TextureLoader();
-        this.grassTex = texLoader.load('/a-texture-for-grass.jpg');
+        const onTexError = (url) => (err) => console.error(`Failed to load texture ${url}:`, err);
+
+        this.grassTex = texLoader.load(encodeURI('/a-texture-for-grass.jpg'), undefined, undefined, onTexError('/a-texture-for-grass.jpg'));
         this.grassTex.wrapS = THREE.RepeatWrapping; this.grassTex.wrapT = THREE.RepeatWrapping;
         this.grassTex.repeat.set(4, 4);
         this.grassTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.sideTex = texLoader.load('/side.jpg');
+        this.sideTex = texLoader.load(encodeURI('/side.jpg'), undefined, undefined, onTexError('/side.jpg'));
         this.sideTex.wrapS = THREE.RepeatWrapping; this.sideTex.wrapT = THREE.RepeatWrapping;
         this.sideTex.repeat.set(2, 1);
         this.sideTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.rockTex = texLoader.load('/texture-for-grey-rock.jpg');
+        this.rockTex = texLoader.load(encodeURI('/texture-for-grey-rock.jpg'), undefined, undefined, onTexError('/texture-for-grey-rock.jpg'));
         this.rockTex.wrapS = THREE.RepeatWrapping; this.rockTex.wrapT = THREE.RepeatWrapping;
         this.rockTex.repeat.set(6, 6);
         this.rockTex.colorSpace = THREE.SRGBColorSpace;
@@ -1551,11 +1553,19 @@ export class Game {
 
     async loadSound(url, name) {
         try {
-            const response = await fetch(url);
+            const encodedUrl = encodeURI(url);
+            const response = await fetch(encodedUrl);
+            if (!response.ok) {
+                console.error(`Failed to load sound ${url}: ${response.status} ${response.statusText}`);
+                return null;
+            }
             const arrayBuffer = await response.arrayBuffer();
             this.sounds[name] = await this.audioCtx.decodeAudioData(arrayBuffer);
             return this.sounds[name];
-        } catch(e) {}
+        } catch(e) {
+            console.error(`Error loading sound ${url}:`, e);
+            return null;
+        }
     }
 
     playSound(name, pitch = 1.0, volume = 1.0) {
@@ -1750,6 +1760,36 @@ export class Game {
             try { this.currentBgmNode.stop(); } catch(e){}
             this.currentBgmNode = null;
         }
+        // Also stop game over music if playing
+        if (this.gameOverMusicNode) {
+            try { this.gameOverMusicNode.stop(); } catch(e){}
+            this.gameOverMusicNode = null;
+        }
+    }
+
+    playGameOverMusic() {
+        const gameOverUrl = '/Game Over.mp3';
+
+        this.loadSound(gameOverUrl, 'gameOverMusic').then(buffer => {
+            if (!buffer) {
+                console.warn('Game Over music not found at', gameOverUrl);
+                return;
+            }
+
+            const source = this.audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+
+            const gain = this.audioCtx.createGain();
+            gain.gain.value = 0.5; // 50% volume
+
+            source.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            source.start(0);
+
+            this.gameOverMusicNode = source;
+            this.gameOverMusicGain = gain;
+        });
     }
 
     init() {
@@ -7201,7 +7241,17 @@ export class Game {
         this.isPlaying = false;
         this.isPaused = true;
         if (document.exitPointerLock) document.exitPointerLock();
-        this.stopBGM();
+
+        // Duck current BGM to very low volume and half speed instead of stopping
+        if (this.currentBgmNode && this.currentBgmGain) {
+            try {
+                this.currentBgmGain.gain.setTargetAtTime(0.05, this.audioCtx.currentTime, 0.3);
+                this.currentBgmNode.playbackRate.setValueAtTime(0.5, this.audioCtx.currentTime);
+            } catch(e) {}
+        }
+
+        // Play Game Over song at 50% volume looping
+        this.playGameOverMusic();
 
         const screen = document.getElementById('game-over-screen');
         const title = document.getElementById('go-title');
@@ -7520,13 +7570,6 @@ export class Game {
     _finishWin() {
         try { this.stopBGM(); } catch (e) {}
         this.tier++;
-        
-        // Unlock Multiplayer immediately upon beating Tier 1
-        if (this.tier === 2) {
-            localStorage.setItem('uberthump_multiplayer_unlocked', 'true');
-            this.showToast("MULTIPLAYER MODE UNLOCKED!");
-            this.playSound('unlock', 1.0, 1.0);
-        }
 
         // Reset runtime objectives for the new tier so the UI restarts fresh
         this._objectives = undefined;
