@@ -412,17 +412,17 @@ export class Game {
         
         // Textures
         const texLoader = new THREE.TextureLoader();
-        this.grassTex = texLoader.load('./a-texture-for-grass.jpg');
+        this.grassTex = texLoader.load('/a-texture-for-grass.jpg');
         this.grassTex.wrapS = THREE.RepeatWrapping; this.grassTex.wrapT = THREE.RepeatWrapping;
         this.grassTex.repeat.set(4, 4);
         this.grassTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.sideTex = texLoader.load('./side.jpg');
+        this.sideTex = texLoader.load('/side.jpg');
         this.sideTex.wrapS = THREE.RepeatWrapping; this.sideTex.wrapT = THREE.RepeatWrapping;
         this.sideTex.repeat.set(2, 1);
         this.sideTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.rockTex = texLoader.load('./texture-for-grey-rock.jpg');
+        this.rockTex = texLoader.load('/texture-for-grey-rock.jpg');
         this.rockTex.wrapS = THREE.RepeatWrapping; this.rockTex.wrapT = THREE.RepeatWrapping;
         this.rockTex.repeat.set(6, 6);
         this.rockTex.colorSpace = THREE.SRGBColorSpace;
@@ -511,16 +511,16 @@ export class Game {
         this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
         
         this.sounds = {};
-        this.loadSound('./bonk.mp3', 'bonk');
-        this.loadSound('./boom.mp3', 'boom');
+        this.loadSound('/bonk.mp3', 'bonk');
+        this.loadSound('/boom.mp3', 'boom');
         
         // Music Playlist
         this.bgmTracks = [
-            './She Went Uber On My Thump.mp3', 
-            './Unthumpable!.mp3', 
-            './Thumpin\' Around.mp3',
-            './Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
-            './Wednesday morning Thump it\'s 9am.mp3'
+            '/She Went Uber On My Thump.mp3',
+            '/Unthumpable!.mp3',
+            '/Thumpin\' Around.mp3',
+            '/Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
+            '/Wednesday morning Thump it\'s 9am.mp3'
         ];
         this.currentBgmNode = null;
         this.currentBgmGain = null;
@@ -1640,13 +1640,13 @@ export class Game {
 
         // Awaken the Undead: always use "The Thumps Arent Messing Around" looped.
         if (this.gameMode === 'AWAKENING') {
-            this.playMusicUrl("./The Thumps Arent Messing Around.mp3", true);
+            this.playMusicUrl("/The Thumps Arent Messing Around.mp3", true);
             return;
         }
 
         // Pantheon Creative: Bonk Theme
         if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
-            this.playMusicUrl("./THUMP ME UP BEFORE YOU GO!!!.mp3", true);
+            this.playMusicUrl("/THUMP ME UP BEFORE YOU GO!!!.mp3", true);
             return;
         }
 
@@ -1654,11 +1654,11 @@ export class Game {
 
         // Character Theme Override
         if (this.useCharacterTheme) {
-            if (this.characterKey === 'SIR_CHAD') trackUrl = "./SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
-            else if (this.characterKey === 'GIGACHAD') trackUrl = "./GIGACHAD'S THEME.mp3";
-            else if (this.characterKey === 'BLITZ') trackUrl = "./BLITZ'S THEME.mp3";
-            else if (this.characterKey === 'CALCIUM') trackUrl = "./CALCIUM'S THEME.mp3";
-            else if (this.characterKey === 'MONKE') trackUrl = "./MONKE'S THEME.mp3";
+            if (this.characterKey === 'SIR_CHAD') trackUrl = "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
+            else if (this.characterKey === 'GIGACHAD') trackUrl = "/GIGACHAD'S THEME.mp3";
+            else if (this.characterKey === 'BLITZ') trackUrl = "/BLITZ'S THEME.mp3";
+            else if (this.characterKey === 'CALCIUM') trackUrl = "/CALCIUM'S THEME.mp3";
+            else if (this.characterKey === 'MONKE') trackUrl = "/MONKE'S THEME.mp3";
         }
 
 
@@ -1725,7 +1725,7 @@ export class Game {
         if (this.gameMode === 'AWAKENING') return;
         if (this.useCharacterTheme) return; // Don't override theme
         
-        const url = "./The Thumps Arent Messing Around.mp3";
+        const url = "/The Thumps Arent Messing Around.mp3";
         
         // Immediately stop any currently scheduled/playing music reliably, then start overtime track.
         try { 
@@ -9493,7 +9493,7 @@ export class Game {
                 this.unlockCharacter('MONKE');
 
                 // Play Monke's Theme snippet as requested
-                const themeUrl = "./MONKE'S THEME.mp3";
+                const themeUrl = "/MONKE'S THEME.mp3";
                 this.loadSound(themeUrl, 'monke_theme').then(buf => {
                     if(!buf) return;
                     // Fade out current BGM
