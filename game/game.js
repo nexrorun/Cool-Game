@@ -1640,33 +1640,25 @@ export class Game {
 
         // Awaken the Undead: always use "The Thumps Arent Messing Around" looped.
         if (this.gameMode === 'AWAKENING') {
-            this.playMusicUrl("/The Thumps Arent Messing Around.mp3", true);
+            this.playMusicUrl("../The Thumps Arent Messing Around.mp3", true);
             return;
         }
 
         // Pantheon Creative: Bonk Theme
         if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
-            this.playMusicUrl("/BONK ME UP BEFORE YOU GO!!!.mp3", true);
+            this.playMusicUrl("../THUMP ME UP BEFORE YOU GO!!!.mp3", true);
             return;
         }
 
         let trackUrl = "";
-        
-        // Character Theme Override
-        if (this.useCharacterTheme) {
-            if (this.characterKey === 'GIGACHAD') trackUrl = "/GIGACHAD'S THEME.mp3";
-            else if (this.characterKey === 'BLITZ') trackUrl = "/BLITZ'S THEME.mp3";
-            else if (this.characterKey === 'CALCIUM') trackUrl = "/CALCIUM'S THEME.mp3";
-            else if (this.characterKey === 'MONKE') trackUrl = "/MONKE'S THEME.mp3";
-        }
 
         // Character Theme Override
         if (this.useCharacterTheme) {
-            if (this.characterKey === 'SIR_CHAD') trackUrl = "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
-            else if (this.characterKey === 'GIGACHAD') trackUrl = "/GIGACHAD'S THEME.mp3";
-            else if (this.characterKey === 'BLITZ') trackUrl = "/BLITZ'S THEME.mp3";
-            else if (this.characterKey === 'CALCIUM') trackUrl = "/CALCIUM'S THEME.mp3";
-            else if (this.characterKey === 'MONKE') trackUrl = "/MONKE'S THEME.mp3";
+            if (this.characterKey === 'SIR_CHAD') trackUrl = "../SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
+            else if (this.characterKey === 'GIGACHAD') trackUrl = "../GIGACHAD'S THEME.mp3";
+            else if (this.characterKey === 'BLITZ') trackUrl = "../BLITZ'S THEME.mp3";
+            else if (this.characterKey === 'CALCIUM') trackUrl = "../CALCIUM'S THEME.mp3";
+            else if (this.characterKey === 'MONKE') trackUrl = "../MONKE'S THEME.mp3";
         }
 
         // Random Gameplay Loop
@@ -1732,7 +1724,7 @@ export class Game {
         if (this.gameMode === 'AWAKENING') return;
         if (this.useCharacterTheme) return; // Don't override theme
         
-        const url = "/The Thumps Arent Messing Around.mp3";
+        const url = "../The Thumps Arent Messing Around.mp3";
         
         // Immediately stop any currently scheduled/playing music reliably, then start overtime track.
         try { 
@@ -9500,7 +9492,7 @@ export class Game {
                 this.unlockCharacter('MONKE');
 
                 // Play Monke's Theme snippet as requested
-                const themeUrl = "/MONKE'S THEME.mp3";
+                const themeUrl = "../MONKE'S THEME.mp3";
                 this.loadSound(themeUrl, 'monke_theme').then(buf => {
                     if(!buf) return;
                     // Fade out current BGM
