@@ -2005,6 +2005,13 @@
                         </div>
                     </div>
 
+                    <!-- TNS Save Slots UI -->
+                    <div id="tns-save-ui" style="display:none; flex-direction:column; gap:10px; width:100%; max-width:420px; margin-top:10px;">
+                        <div style="color:#ffd700; text-align:center; font-size:0.9rem; margin-bottom:5px; text-transform:uppercase;">Story Saves</div>
+                        <div id="tns-save-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+                        <button id="tns-back-btn" style="padding:10px; font-size:0.8rem; background:#222; border-color:#666; color:#aaa; cursor:pointer;">CANCEL</button>
+                    </div>
+
                     <!-- Compact locked list (only shown when there are locked characters) -->
                     <div id="locked-list" class="hud-panel" style="margin-top:8px; display:none; max-width:420px;">
                         <div style="font-size:0.75rem; color:#ffd700; text-transform:uppercase; margin-bottom:6px;">Locked Characters</div>
@@ -2023,6 +2030,7 @@
                             <option value="AWAKENING">AWAKENING THE DEAD</option>
                             <option value="MULTI">MULTIPLAYER (VS)</option>
                             <option value="TNS">TOTALLY NOT SCRIPTED (STORY)</option>
+                            <option value="PANTHEON">PANTHEON (CREATIVE)</option>
                         </select>
                         <div id="mode-helper-text" style="font-size:0.6rem; color:#ff6666; max-width:260px; display:none;"></div>
                     </div>
@@ -2032,6 +2040,11 @@
                         <label for="theme-toggle">USE CHARACTER THEME</label>
                     </div>
                 </div>
+                
+                <div style="margin-top:10px; display:flex; gap:10px;">
+                    <button id="load-world-btn" style="display:none; padding:8px 12px; font-size:0.7rem; background:#222; border:1px solid #888;">LOAD WORLD</button>
+                </div>
+
                 <div id="awakening-msg" style="display:none; color:#ff4444; font-size:0.8rem; margin-top:10px; max-width:300px;">
                     AWAKENING MODE ACTIVE: Starts as Knight. Infinite Progression. Evolution System. Permanent Pixel Mode.
                 </div>
@@ -2048,6 +2061,102 @@
             <button id="unlock-continue-btn">CONTINUE</button>
         </div>
     </div>
+
+    <!-- Pantheon UI -->
+    <div id="pantheon-ui" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:150;">
+        <div id="pantheon-controls-hint" style="position:absolute; top:10px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,0.7); font-size:0.75rem; font-family:'Space Mono', monospace; text-shadow:1px 1px 0 #000; background:rgba(0,0,0,0.5); padding:4px 8px; border-radius:4px;">
+            [P] MENU | [SPACE x2] FLY | [L-CLICK] PLACE
+        </div>
+        
+        <!-- Crosshair for placement -->
+        <div style="position:absolute; top:50%; left:50%; width:10px; height:10px; border:2px solid rgba(255,255,255,0.5); border-radius:50%; transform:translate(-50%, -50%); pointer-events:none;"></div>
+
+        <div id="pantheon-menu" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:600px; height:500px; background:rgba(0,0,0,0.95); border:2px solid #00ff88; color:#fff; flex-direction:column; pointer-events:auto; z-index:200; box-shadow:0 0 50px rgba(0,255,136,0.2);">
+            <div style="padding:10px; background:#111; border-bottom:1px solid #333; display:flex; gap:10px; align-items:center;">
+                <span style="color:#00ff88; font-weight:bold; margin-right:10px;">PANTHEON</span>
+                <button class="pan-tab active" data-tab="enemies">ENEMIES</button>
+                <button class="pan-tab" data-tab="structures">STRUCTURES</button>
+                <button class="pan-tab" data-tab="player">PLAYER</button>
+                <button class="pan-tab" data-tab="world">WORLD</button>
+                <button id="pan-close" style="margin-left:auto; background:#330000; color:#ff4444; border:1px solid #ff4444; width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center;">X</button>
+            </div>
+            
+            <div id="pan-content-enemies" class="pan-content" style="padding:15px; overflow-y:auto; display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
+            <div id="pan-content-structures" class="pan-content" style="padding:15px; overflow-y:auto; display:none; grid-template-columns:1fr 1fr; gap:8px;"></div>
+            <div id="pan-content-player" class="pan-content" style="padding:15px; overflow-y:auto; display:none; flex-direction:column; gap:8px;">
+                <div id="pan-player-list"></div>
+            </div>
+            
+            <div id="pan-content-world" class="pan-content" style="padding:20px; display:none; flex-direction:column; gap:15px;">
+                <div>
+                    <div style="font-size:0.8rem; color:#aaa; margin-bottom:5px;">TIME SCALE: <span id="pan-timescale-val" style="color:#fff">1.0x</span></div>
+                    <input type="range" id="pan-timescale" min="0" max="5" step="0.1" value="1.0" style="width:100%">
+                </div>
+                <div>
+                    <div style="font-size:0.8rem; color:#aaa; margin-bottom:5px;">WORLD DATA (EXPORT)</div>
+                    <textarea id="pan-export-area" readonly style="width:100%; height:120px; background:#111; color:#0f0; font-family:monospace; font-size:0.65rem; border:1px solid #333; padding:8px;"></textarea>
+                </div>
+                <button id="pan-export-btn" style="background:#004400; border:1px solid #00ff88; color:#00ff88; padding:12px;">GENERATE & COPY DATA</button>
+                <div style="font-size:0.7rem; color:#888; line-height:1.4;">
+                    To play this world later or share it, copy the code above.<br>
+                    Use "LOAD WORLD" in the main menu to import it.
+                </div>
+                <button id="pan-clear-btn" style="background:#440000; border:1px solid #ff4444; color:#ff4444; padding:8px; margin-top:auto;">CLEAR WORLD</button>
+            </div>
+            
+            <div id="pan-footer" style="padding:8px; background:#111; border-top:1px solid #333; font-size:0.7rem; color:#aaa; text-align:center;">
+                Selected: <span id="pan-selected-tool" style="color:#fff; font-weight:bold;">NONE</span>
+            </div>
+        </div>
+    </div>
+    <style>
+        .pan-tab {
+            background: transparent;
+            border: 1px solid #555;
+            color: #888;
+            padding: 6px 12px;
+            font-family: 'Space Mono', monospace;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        .pan-tab.active {
+            background: #00ff88;
+            color: #000;
+            border-color: #00ff88;
+            font-weight: bold;
+        }
+        .pan-btn {
+            background: #222;
+            border: 1px solid #444;
+            color: #ddd;
+            padding: 10px;
+            text-align: left;
+            cursor: pointer;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+        .pan-btn:hover {
+            background: #333;
+            border-color: #fff;
+            color: #fff;
+        }
+        .pan-mini-btn {
+            background: #222;
+            border: 1px solid #555;
+            color: #fff;
+            width: 20px;
+            height: 20px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .pan-mini-btn:hover { background: #444; border-color:#fff; }
+        .pan-content {
+            flex: 1;
+            height: 100%;
+        }
+    </style>
 
     <div id="loading-overlay">
         <div id="loading-box">
