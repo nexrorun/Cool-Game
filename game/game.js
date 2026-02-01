@@ -412,17 +412,17 @@ export class Game {
         
         // Textures
         const texLoader = new THREE.TextureLoader();
-        this.grassTex = texLoader.load('/a-texture-for-grass.jpg');
+        this.grassTex = texLoader.load('./a-texture-for-grass.jpg');
         this.grassTex.wrapS = THREE.RepeatWrapping; this.grassTex.wrapT = THREE.RepeatWrapping;
         this.grassTex.repeat.set(4, 4);
         this.grassTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.sideTex = texLoader.load('/side.jpg');
+        this.sideTex = texLoader.load('./side.jpg');
         this.sideTex.wrapS = THREE.RepeatWrapping; this.sideTex.wrapT = THREE.RepeatWrapping;
         this.sideTex.repeat.set(2, 1);
         this.sideTex.colorSpace = THREE.SRGBColorSpace;
 
-        this.rockTex = texLoader.load('/texture-for-grey-rock.jpg');
+        this.rockTex = texLoader.load('./texture-for-grey-rock.jpg');
         this.rockTex.wrapS = THREE.RepeatWrapping; this.rockTex.wrapT = THREE.RepeatWrapping;
         this.rockTex.repeat.set(6, 6);
         this.rockTex.colorSpace = THREE.SRGBColorSpace;
@@ -511,16 +511,16 @@ export class Game {
         this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
         
         this.sounds = {};
-        this.loadSound('/bonk.mp3', 'bonk');
-        this.loadSound('/boom.mp3', 'boom');
+        this.loadSound('./bonk.mp3', 'bonk');
+        this.loadSound('./boom.mp3', 'boom');
         
         // Music Playlist
         this.bgmTracks = [
-            '/She Went Uber On My Thump.mp3', 
-            '/Unthumpable!.mp3', 
-            '/Thumpin\' Around.mp3',
-            '/Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
-            '/Wednesday morning Thump it\'s 9am.mp3'
+            './She Went Uber On My Thump.mp3', 
+            './Unthumpable!.mp3', 
+            './Thumpin\' Around.mp3',
+            './Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
+            './Wednesday morning Thump it\'s 9am.mp3'
         ];
         this.currentBgmNode = null;
         this.currentBgmGain = null;
