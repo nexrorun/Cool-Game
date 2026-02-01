@@ -1,8 +1,16 @@
+/**
+ * @fileoverview Main Game class for UberThump
+ * This is the core game engine handling rendering, physics, combat, and game state.
+ *
+ * @module game/game
+ */
+
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { ParticleSystem, XPOrb, randomRange, SeededRandom } from './utils.js';
 
 const RARITIES = {
+
     COMMON: { name: "Common", color: 0xaaaaaa, mult: 1.0, chance: 0.50 },
     UNCOMMON: { name: "Uncommon", color: 0x00ff00, mult: 1.2, chance: 0.30 },
     RARE: { name: "Rare", color: 0x0088ff, mult: 1.5, chance: 0.15 },
@@ -139,6 +147,7 @@ const CHARACTERS = {
         description: 'Summons friendly ghosts. Cannot attack directly.'
     }
 };
+
 
 window.CHARACTERS = CHARACTERS;
 
