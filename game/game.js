@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { ParticleSystem, XPOrb, randomRange, SeededRandom } from './utils.js';
 
 const RARITIES = {
