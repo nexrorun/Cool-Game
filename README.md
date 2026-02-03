@@ -4,6 +4,12 @@ A fast-paced action roguelike arena shooter built with THREE.js, featuring proce
 
 ---
 
+## Open the Game
+
+https://nexrorun.github.io/Cool-Game/
+
+---
+
 ## Table of Contents
 
 1. [Game Overview](#game-overview)
