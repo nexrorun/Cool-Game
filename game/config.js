@@ -282,17 +282,17 @@ export const SPAWN_CONFIG = Object.freeze({
 
 /** Background music playlist */
 export const BGM_TRACKS = Object.freeze([
-    '/She Went Uber On My Thump.mp3',
-    '/Unthumpable!.mp3',
-    '/Thumpin\' Around.mp3',
-    '/Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
-    '/Wednesday morning Thump it\'s 9am.mp3'
+    './She Went Uber On My Thump.mp3',
+    './Unthumpable!.mp3',
+    './Thumpin\' Around.mp3',
+    './Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
+    './Wednesday morning Thump it\'s 9am.mp3'
 ]);
 
 /** Sound effect paths */
 export const SFX = Object.freeze({
-    BONK: '/bonk.mp3',
-    BOOM: '/boom.mp3'
+    BONK: './bonk.mp3',
+    BOOM: './boom.mp3'
 });
 
 // ============================================================================
