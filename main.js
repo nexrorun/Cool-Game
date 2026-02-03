@@ -1209,7 +1209,7 @@ window.addEventListener('DOMContentLoaded', () => {
             blurb: 'The ultimate tank. A black knight of legend. #Pansexual #Bisexual #Poly #LoveIsLove #TankLife #GigaLove #SwordMaster #Pride #Rainbow #ChadFamily 🏳️‍🌈. He strikes with immense power.',
             unlock: 'Unlock: Unlock GigaChad AND Upgrade "Spinning Blade" to Lvl 5.',
             themeColor: 'linear-gradient(135deg, #000000, #440000)',
-            themeUrl: "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3"
+            themeUrl: "./SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3"
         },
         BOBERTO: {
             name: 'Boberto',
@@ -1828,11 +1828,11 @@ window.addEventListener('DOMContentLoaded', () => {
     // Preload themes
     setTimeout(() => {
         const themeUrls = [
-            "/GIGACHAD'S THEME.mp3",
-            "/BLITZ'S THEME.mp3",
-            "/CALCIUM'S THEME.mp3",
-            "/MONKE'S THEME.mp3",
-            "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3"
+            "./GIGACHAD'S THEME.mp3",
+            "./BLITZ'S THEME.mp3",
+            "./CALCIUM'S THEME.mp3",
+            "./MONKE'S THEME.mp3",
+            "./SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3"
         ];
         themeUrls.forEach(url => loadSound(url));
     }, 1000);
@@ -1980,7 +1980,7 @@ window.addEventListener('DOMContentLoaded', () => {
         // Already playing?
         if (menuAudio && menuAudio.source) return;
 
-        loadSound("/MY FRIENDS WONT STOP THUMPING AND NOW I AM THUMPING TOO (send help).mp3").then(buf => {
+        loadSound("./MY FRIENDS WONT STOP THUMPING AND NOW I AM THUMPING TOO (send help).mp3").then(buf => {
             if (!buf) return;
             // If something started in the meantime, don't double-play
             if (menuAudio && menuAudio.source) return;
@@ -2010,11 +2010,11 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         let url = null;
-        if (key === 'SIR_CHAD') url = "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
-        else if (key === 'GIGACHAD') url = "/GIGACHAD'S THEME.mp3";
-        else if (key === 'BLITZ') url = "/BLITZ'S THEME.mp3";
-        else if (key === 'CALCIUM') url = "/CALCIUM'S THEME.mp3";
-        else if (key === 'MONKE') url = "/MONKE'S THEME.mp3";
+        if (key === 'SIR_CHAD') url = "./SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
+        else if (key === 'GIGACHAD') url = "./GIGACHAD'S THEME.mp3";
+        else if (key === 'BLITZ') url = "./BLITZ'S THEME.mp3";
+        else if (key === 'CALCIUM') url = "./CALCIUM'S THEME.mp3";
+        else if (key === 'MONKE') url = "./MONKE'S THEME.mp3";
         
         if (!url) {
             // Restore menu volume properly via the GainNode's AudioParam
@@ -2240,9 +2240,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
             // Texture Loading - with color fallbacks if loading fails
             // Grass = green, Side = brown, Rock = grey
-            this.grassTex = loadTextureWithFallback('/a-texture-for-grass.jpg', '#228B22', 4, 4);
-            this.sideTex = loadTextureWithFallback('/side.jpg', '#8B4513', 2, 1);
-            this.rockTex = loadTextureWithFallback('/texture-for-grey-rock.jpg', '#808080', 6, 6);
+            this.grassTex = loadTextureWithFallback('./a-texture-for-grass.jpg', '#228B22', 4, 4);
+            this.sideTex = loadTextureWithFallback('./side.jpg', '#8B4513', 2, 1);
+            this.rockTex = loadTextureWithFallback('./texture-for-grey-rock.jpg', '#808080', 6, 6);
 
             // Pixelation Setup
             this.pixelRatio = 0.3;
