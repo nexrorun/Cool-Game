@@ -9,6 +9,17 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { ParticleSystem, XPOrb, randomRange, SeededRandom } from './utils.js';
 
+// Properly encode a file path for URLs - handles special characters like parentheses, braces, apostrophes
+function encodeAssetPath(path) {
+    // Split path by /, encode each component, rejoin
+    return path.split('/').map((part, i) => {
+        // Don't encode empty parts or the leading dot
+        if (part === '' || part === '.') return part;
+        // Encode the filename/directory part
+        return encodeURIComponent(part);
+    }).join('/');
+}
+
 // Fallback color texture generator
 function createColorTexture(color, width = 64, height = 64) {
     const canvas = document.createElement('canvas');
@@ -33,7 +44,7 @@ function loadTextureWithFallback(url, fallbackColor, repeatX = 1, repeatY = 1) {
 
     const texLoader = new THREE.TextureLoader();
     texLoader.load(
-        encodeURI(url),
+        encodeAssetPath(url),
         // onLoad - texture loaded successfully, copy image to fallback
         (loadedTex) => {
             console.log(`Texture loaded: ${url}`);
@@ -1582,7 +1593,7 @@ export class Game {
 
     async loadSound(url, name) {
         try {
-            const encodedUrl = encodeURI(url);
+            const encodedUrl = encodeAssetPath(url);
             const response = await fetch(encodedUrl);
             if (!response.ok) {
                 console.error(`Failed to load sound ${url}: ${response.status} ${response.statusText}`);

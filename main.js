@@ -1,6 +1,17 @@
 import { Game } from './game/game.js';
 import * as THREE from 'three';
 
+// Properly encode a file path for URLs - handles special characters like parentheses, braces, apostrophes
+function encodeAssetPath(path) {
+    // Split path by /, encode each component, rejoin
+    return path.split('/').map((part, i) => {
+        // Don't encode empty parts or the leading dot
+        if (part === '' || part === '.') return part;
+        // Encode the filename/directory part
+        return encodeURIComponent(part);
+    }).join('/');
+}
+
 // Fallback color texture generator
 function createColorTexture(color, width = 64, height = 64) {
     const canvas = document.createElement('canvas');
@@ -25,7 +36,7 @@ function loadTextureWithFallback(url, fallbackColor, repeatX = 1, repeatY = 1) {
 
     const texLoader = new THREE.TextureLoader();
     texLoader.load(
-        encodeURI(url),
+        encodeAssetPath(url),
         // onLoad - texture loaded successfully, copy image to fallback
         (loadedTex) => {
             console.log(`Texture loaded: ${url}`);
@@ -1164,7 +1175,8 @@ window.addEventListener('DOMContentLoaded', () => {
             damage: 'Chain hits',
             special: 'Throws ricocheting bones that bounce between enemies.',
             blurb: 'A momentum-based skater that gets faster the more you move. Keep shredding to stay safe and delete lines of enemies.',
-            unlock: 'Unlock: Kill 200 skeletons AND get a miniboss kill as Mr. Mc. Oofy Otterson Vangough III.'
+            unlock: 'Unlock: Kill 200 skeletons AND get a miniboss kill as Mr. Mc. Oofy Otterson Vangough III.',
+            themeUrl: "./CALCIUM'S THEME.mp3"
         },
         GIGACHAD: {
             name: 'GigaChad',
@@ -1175,7 +1187,8 @@ window.addEventListener('DOMContentLoaded', () => {
             special: 'Damage aura around you and a flex that periodically ignores one big hit.',
             blurb: 'Walk into danger, flex through hits, and let enemies melt in your aura. Great for aggressive, close-range play.',
             unlock: 'Unlock: Upgrade any Aura weapon to Lv.3 AND unlock Monke.',
-            themeColor: 'linear-gradient(135deg, #ffaa00, #ff5500)'
+            themeColor: 'linear-gradient(135deg, #ffaa00, #ff5500)',
+            themeUrl: "./GIGACHAD'S THEME.mp3"
         },
         BLITZ: {
             name: 'Blitz',
@@ -1186,7 +1199,8 @@ window.addEventListener('DOMContentLoaded', () => {
             special: 'Built-in lightning that auto-zaps nearby enemies, plus strong weapon fire rate.',
             blurb: 'All-rounder bot that feels good with almost any build. Great for learning routes around the arena.',
             unlock: 'Unlock: Defeat the main boss once.',
-            themeColor: 'linear-gradient(135deg, #00ccff, #0044ff)'
+            themeColor: 'linear-gradient(135deg, #00ccff, #0044ff)',
+            themeUrl: "./BLITZ'S THEME.mp3"
         },
         MONKE: {
             name: 'Monke',
@@ -1197,7 +1211,8 @@ window.addEventListener('DOMContentLoaded', () => {
             special: 'Throws bananas that return. High agility and can climb steep walls.',
             blurb: 'Reject humanity. Return to monke. Finds creative ways around obstacles.',
             unlock: 'Unlock: Upgrade Bananerang to Lv.3 AND find the hidden crate in the world.',
-            themeColor: 'linear-gradient(135deg, #5C4033, #C4A484)'
+            themeColor: 'linear-gradient(135deg, #5C4033, #C4A484)',
+            themeUrl: "./MONKE'S THEME.mp3"
         },
         SIR_CHAD: {
             name: 'Sir Chadsirwellsirchadsirchadwellwell',
@@ -1540,9 +1555,20 @@ window.addEventListener('DOMContentLoaded', () => {
         const isUnlocked = isCharacterUnlocked(selectedCharacter);
         
         // Only show unlock requirement if locked
-        const unlockHtml = (!isUnlocked && info.unlock) 
-            ? `<div class="char-unlock">${info.unlock}</div>` 
+        const unlockHtml = (!isUnlocked && info.unlock)
+            ? `<div class="char-unlock">${info.unlock}</div>`
             : '';
+
+        // Show theme song checkbox only for characters with themes (not Fox or MMOOVT)
+        const hasTheme = !!info.themeUrl;
+        const themeCheckboxHtml = hasTheme ? `
+            <div class="char-stat-row" style="margin-top:8px;border-top:1px solid #333;padding-top:8px;">
+                <label for="use-char-theme" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.7rem;">
+                    <input type="checkbox" id="use-char-theme" ${useCharacterTheme ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;">
+                    <span>Use Character Theme</span>
+                </label>
+            </div>
+        ` : '';
 
         // Add a top-level "View Bestiary" button that opens the enemy journal
         // Note: the Bestiary toggle button was moved out of this panel to a persistent top-right toggle.
@@ -1556,8 +1582,17 @@ window.addEventListener('DOMContentLoaded', () => {
             <div class="char-stat-row"><span>Damage Style</span><span>${info.damage}</span></div>
             <div class="char-stat-row"><span>Special</span><span>${info.special}</span></div>
             <div class="char-desc">${info.blurb}</div>
+            ${themeCheckboxHtml}
             ${unlockHtml}
         `;
+
+        // Hook up the theme checkbox if present
+        const themeCheckbox = document.getElementById('use-char-theme');
+        if (themeCheckbox) {
+            themeCheckbox.addEventListener('change', (e) => {
+                useCharacterTheme = e.target.checked;
+            });
+        }
 
         // Hook up the bestiary button - logic moved to top-right persistent button
     }
@@ -1809,7 +1844,7 @@ window.addEventListener('DOMContentLoaded', () => {
     async function loadSound(url) {
         if(soundCache[url]) return soundCache[url];
         try {
-            const encodedUrl = encodeURI(url);
+            const encodedUrl = encodeAssetPath(url);
             const res = await fetch(encodedUrl);
             if (!res.ok) {
                 console.error(`Failed to load sound ${url}: ${res.status} ${res.statusText}`);
