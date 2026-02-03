@@ -37,7 +37,7 @@ To play UberThump, simply open `index.html` in a modern web browser that support
 
 Upon launching, you will be greeted by the main menu featuring the animated UBERTHUMP title with its characteristic RGB-shifting underline. From here, you can enter the arena to begin playing, access the Bestiary to view information about enemies and characters you have encountered, or visit the Forge for additional game features.
 
-The first time you play, you will have access to three starting characters: MMOOVT (a tanky knight with a powerful sword), Fox (a fast-moving caster with seeking fireballs), and Boberto (a summoner with ghost minions). Additional characters are unlocked by completing specific in-game achievements and challenges, encouraging experimentation with different playstyles and repeated runs.
+The first time you play, you will have access to two starting characters: MMOOVT (a tanky knight with a powerful sword) and Fox (a fast-moving caster with seeking fireballs). Additional characters are unlocked by completing specific in-game achievements and challenges, encouraging experimentation with different playstyles and repeated runs. The final character, Boberto, requires completing the entire Story Mode to unlock.
 
 ---
 
@@ -80,7 +80,7 @@ Pantheon is a creative sandbox mode unlocked after completing Story Mode. It fea
 
 ## Playable Characters
 
-UberThump features eight playable characters, each with distinct statistics, abilities, and starting weapons. Three characters are available from the start, while the remaining five must be unlocked through gameplay achievements.
+UberThump features eight playable characters, each with distinct statistics, abilities, and starting weapons. Two characters are available from the start (MMOOVT and Fox), while the remaining six must be unlocked through gameplay achievements.
 
 ### MMOOVT (Unlocked by Default)
 
@@ -90,9 +90,9 @@ MMOOVT is a heavily armored knight designed for players who prefer a tanky, up-c
 
 Fox represents the opposite end of the spectrum from MMOOVT, offering a fast-moving caster playstyle with only 80 HP but exceptional speed and area-of-effect damage potential. The Fireball starting weapon launches rapid-fire seeking projectiles that home in on nearby enemies, allowing Fox players to focus on positioning and dodging rather than aiming. This character excels at kiting enemies and maintaining distance while dealing consistent damage across multiple targets.
 
-### Boberto (Unlocked by Default)
+### Boberto (Unlockable - Hardest)
 
-Boberto is a summoner character with only 90 HP but a unique minion-based playstyle. The Spooky Bois starting weapon spawns friendly ghost allies that fight alongside the player, attacking enemies independently. Boberto also possesses a double jump ability for enhanced mobility and vertical navigation.
+Boberto is the most difficult character to unlock, with two possible paths: complete all four tiers of Story Mode (TNS), or unlock every other character AND find the Secret Note hidden in the world. This summoner character has only 90 HP but a unique minion-based playstyle. The Spooky Bois starting weapon spawns friendly ghost allies that fight alongside the player, attacking enemies independently. Boberto also possesses a double jump ability for enhanced mobility and vertical navigation. Unlocking Boberto represents true mastery of UberThump.
 
 ### Calcium (Unlockable)
 
@@ -306,6 +306,7 @@ Each unlockable character has specific requirements:
 | Monke | Upgrade Bananerang to Level 3 AND find the hidden crate |
 | GigaChad | Upgrade any aura weapon to Level 3 AND unlock Monke first |
 | Sir Chad | Unlock GigaChad AND upgrade Spinning Blade to Level 5 |
+| Boberto | Complete Story Mode (beat all 4 tiers) OR unlock all other characters AND find the Secret Note - Hardest unlock |
 
 Unlock progress is tracked across sessions and stored in local storage, ensuring that partial progress is not lost.
 

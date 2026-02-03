@@ -97,7 +97,7 @@ const DEFAULT_UNLOCKS = Object.freeze({
     BLITZ: false,
     MONKE: false,
     SIR_CHAD: false,
-    BOBERTO: true
+    BOBERTO: false  // Hardest to unlock - requires completing Story Mode (TNS Tier 4)
 });
 
 /**

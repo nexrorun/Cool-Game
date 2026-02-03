@@ -7286,14 +7286,14 @@ export class Game {
         if (document.exitPointerLock) document.exitPointerLock();
 
         // Duck the current BGM instead of stopping it completely
-        // Lower volume to very low (0.05) and half speed (0.5)
+        // Lower volume to 105/255 (~0.41) and half speed (0.5)
         if (this.currentBgmNode && this.currentBgmGain) {
             try {
                 const t = this.audioCtx.currentTime;
-                // Duck volume to 0.05 (very low)
+                // Duck volume to 105/255 (~0.41) - keeps music audible but subdued
                 this.currentBgmGain.gain.cancelScheduledValues(t);
                 this.currentBgmGain.gain.setValueAtTime(this.currentBgmGain.gain.value, t);
-                this.currentBgmGain.gain.linearRampToValueAtTime(0.05, t + 0.5);
+                this.currentBgmGain.gain.linearRampToValueAtTime(105 / 255, t + 0.5);
                 // Slow down to half speed
                 this.currentBgmNode.playbackRate.setValueAtTime(this.currentBgmNode.playbackRate.value, t);
                 this.currentBgmNode.playbackRate.linearRampToValueAtTime(0.5, t + 0.5);
@@ -7534,9 +7534,11 @@ export class Game {
 
         // TNS Logic: Finish Story Tier
         if (this.gameMode === 'TNS') {
-            // Tier 4 Win -> Pantheon Unlock
+            // Tier 4 Win -> Pantheon Unlock + Boberto Unlock
             if (this.tnsTier === 4) {
                 localStorage.setItem('uberthump_pantheon_unlocked', 'true');
+                // Boberto is the hardest character to unlock - requires completing the entire Story Mode
+                this.unlockCharacter('BOBERTO');
                 
                 // Epic Portal Animation
                 // Create giant portal encompassing map
