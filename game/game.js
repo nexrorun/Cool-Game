@@ -454,9 +454,9 @@ export class Game {
         
         // Textures - with color fallbacks if loading fails
         // Grass = green, Side = brown, Rock = grey
-        this.grassTex = loadTextureWithFallback('/a-texture-for-grass.jpg', '#228B22', 4, 4);
-        this.sideTex = loadTextureWithFallback('/side.jpg', '#8B4513', 2, 1);
-        this.rockTex = loadTextureWithFallback('/texture-for-grey-rock.jpg', '#808080', 6, 6);
+        this.grassTex = loadTextureWithFallback('./a-texture-for-grass.jpg', '#228B22', 4, 4);
+        this.sideTex = loadTextureWithFallback('./side.jpg', '#8B4513', 2, 1);
+        this.rockTex = loadTextureWithFallback('./texture-for-grey-rock.jpg', '#808080', 6, 6);
         
         // Stats - Speed boosted by 1.5x as requested
         const baseFireRate = this.characterConfig ? this.characterConfig.fireRate : 0.8;
@@ -542,16 +542,16 @@ export class Game {
         this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
         
         this.sounds = {};
-        this.loadSound('/bonk.mp3', 'bonk');
-        this.loadSound('/boom.mp3', 'boom');
+        this.loadSound('./bonk.mp3', 'bonk');
+        this.loadSound('./boom.mp3', 'boom');
         
         // Music Playlist
         this.bgmTracks = [
-            '/She Went Uber On My Thump.mp3',
-            '/Unthumpable!.mp3',
-            '/Thumpin\' Around.mp3',
-            '/Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
-            '/Wednesday morning Thump it\'s 9am.mp3'
+            './She Went Uber On My Thump.mp3',
+            './Unthumpable!.mp3',
+            './Thumpin\' Around.mp3',
+            './Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3',
+            './Wednesday morning Thump it\'s 9am.mp3'
         ];
         this.currentBgmNode = null;
         this.currentBgmGain = null;
@@ -1677,13 +1677,13 @@ export class Game {
 
         // Awaken the Undead: always use "The Thumps Arent Messing Around" looped.
         if (this.gameMode === 'AWAKENING') {
-            this.playMusicUrl("/The Thumps Arent Messing Around.mp3", true);
+            this.playMusicUrl("./The Thumps Arent Messing Around.mp3", true);
             return;
         }
 
         // Pantheon Creative: Bonk Theme
         if (this.gameMode === 'PANTHEON' && this.pantheonState === 'CREATIVE') {
-            this.playMusicUrl("/THUMP ME UP BEFORE YOU GO!!!.mp3", true);
+            this.playMusicUrl("./THUMP ME UP BEFORE YOU GO!!!.mp3", true);
             return;
         }
 
@@ -1691,11 +1691,11 @@ export class Game {
 
         // Character Theme Override
         if (this.useCharacterTheme) {
-            if (this.characterKey === 'SIR_CHAD') trackUrl = "/SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
-            else if (this.characterKey === 'GIGACHAD') trackUrl = "/GIGACHAD'S THEME.mp3";
-            else if (this.characterKey === 'BLITZ') trackUrl = "/BLITZ'S THEME.mp3";
-            else if (this.characterKey === 'CALCIUM') trackUrl = "/CALCIUM'S THEME.mp3";
-            else if (this.characterKey === 'MONKE') trackUrl = "/MONKE'S THEME.mp3";
+            if (this.characterKey === 'SIR_CHAD') trackUrl = "./SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3";
+            else if (this.characterKey === 'GIGACHAD') trackUrl = "./GIGACHAD'S THEME.mp3";
+            else if (this.characterKey === 'BLITZ') trackUrl = "./BLITZ'S THEME.mp3";
+            else if (this.characterKey === 'CALCIUM') trackUrl = "./CALCIUM'S THEME.mp3";
+            else if (this.characterKey === 'MONKE') trackUrl = "./MONKE'S THEME.mp3";
         }
 
 
@@ -1762,7 +1762,7 @@ export class Game {
         if (this.gameMode === 'AWAKENING') return;
         if (this.useCharacterTheme) return; // Don't override theme
         
-        const url = "/The Thumps Arent Messing Around.mp3";
+        const url = "./The Thumps Arent Messing Around.mp3";
         
         // Immediately stop any currently scheduled/playing music reliably, then start overtime track.
         try { 
@@ -1786,6 +1786,52 @@ export class Game {
         if (this.currentBgmNode) {
             try { this.currentBgmNode.stop(); } catch(e){}
             this.currentBgmNode = null;
+        }
+    }
+
+    /**
+     * Play the Game Over music at 50% volume, looping
+     */
+    playGameOverMusic() {
+        const gameOverUrl = "./Game Over.mp3";
+
+        const play = (buffer) => {
+            if (!buffer) return;
+
+            const source = this.audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true; // Loop the game over music
+
+            const gain = this.audioCtx.createGain();
+            gain.gain.value = 0.5; // 50% volume
+
+            source.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            source.start(0);
+
+            // Store reference for cleanup
+            this.gameOverMusicNode = source;
+            this.gameOverMusicGain = gain;
+        };
+
+        // Check if already loaded, otherwise load it
+        if (this.sounds[gameOverUrl]) {
+            play(this.sounds[gameOverUrl]);
+        } else {
+            this.loadSound(gameOverUrl, gameOverUrl).then(buffer => {
+                if (buffer) play(buffer);
+            });
+        }
+    }
+
+    /**
+     * Stop the Game Over music
+     */
+    stopGameOverMusic() {
+        if (this.gameOverMusicNode) {
+            try { this.gameOverMusicNode.stop(); } catch(e){}
+            this.gameOverMusicNode = null;
+            this.gameOverMusicGain = null;
         }
     }
 
@@ -7238,7 +7284,27 @@ export class Game {
         this.isPlaying = false;
         this.isPaused = true;
         if (document.exitPointerLock) document.exitPointerLock();
-        this.stopBGM();
+
+        // Duck the current BGM instead of stopping it completely
+        // Lower volume to very low (0.05) and half speed (0.5)
+        if (this.currentBgmNode && this.currentBgmGain) {
+            try {
+                const t = this.audioCtx.currentTime;
+                // Duck volume to 0.05 (very low)
+                this.currentBgmGain.gain.cancelScheduledValues(t);
+                this.currentBgmGain.gain.setValueAtTime(this.currentBgmGain.gain.value, t);
+                this.currentBgmGain.gain.linearRampToValueAtTime(0.05, t + 0.5);
+                // Slow down to half speed
+                this.currentBgmNode.playbackRate.setValueAtTime(this.currentBgmNode.playbackRate.value, t);
+                this.currentBgmNode.playbackRate.linearRampToValueAtTime(0.5, t + 0.5);
+            } catch(e) {
+                // Fallback: just stop BGM if ducking fails
+                this.stopBGM();
+            }
+        }
+
+        // Play Game Over song at 50% volume, looping
+        this.playGameOverMusic();
 
         const screen = document.getElementById('game-over-screen');
         const title = document.getElementById('go-title');
@@ -9530,7 +9596,7 @@ export class Game {
                 this.unlockCharacter('MONKE');
 
                 // Play Monke's Theme snippet as requested
-                const themeUrl = "/MONKE'S THEME.mp3";
+                const themeUrl = "./MONKE'S THEME.mp3";
                 this.loadSound(themeUrl, 'monke_theme').then(buf => {
                     if(!buf) return;
                     // Fade out current BGM

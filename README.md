@@ -1,6 +1,6 @@
 # UBERTHUMP
 
-A fast-paced action roguelike arena shooter built with THREE.js, featuring procedural world generation, deep character progression, multiple game modes, and real-time multiplayer battles.
+A fast-paced action roguelike arena shooter built with THREE.js, featuring procedural world generation, deep character progression, and multiple game modes.
 
 ---
 
@@ -15,10 +15,9 @@ A fast-paced action roguelike arena shooter built with THREE.js, featuring proce
 7. [Enemies and Bosses](#enemies-and-bosses)
 8. [World and Level Design](#world-and-level-design)
 9. [Progression and Unlocks](#progression-and-unlocks)
-10. [Multiplayer System](#multiplayer-system)
-11. [Controls](#controls)
-12. [Technical Architecture](#technical-architecture)
-13. [Save Data and Persistence](#save-data-and-persistence)
+10. [Controls](#controls)
+11. [Technical Architecture](#technical-architecture)
+12. [Save Data and Persistence](#save-data-and-persistence)
 
 ---
 
@@ -26,19 +25,19 @@ A fast-paced action roguelike arena shooter built with THREE.js, featuring proce
 
 UberThump is an action-roguelike arena shooter that draws inspiration from games like Vampire Survivors. Players select from a roster of unique characters, each with their own starting weapon and playstyle, then battle waves of procedurally spawned enemies while collecting experience orbs, coins, and powerful upgrades. The core gameplay loop revolves around surviving increasingly difficult enemy waves, leveling up to acquire new weapons and passive abilities, and ultimately defeating powerful bosses to progress through tiers or complete objectives.
 
-The game features a distinctive pixelated retro aesthetic achieved through custom post-processing shaders that apply resolution reduction and color quantization to the rendered scene. This visual style is complemented by a carefully curated soundtrack with tracks that match the game's energetic, arcade-style atmosphere.
+The game features a distinctive pixelated retro aesthetic achieved through custom post-processing shaders that apply resolution reduction and color quantization to the rendered scene. This visual style is complemented by an original soundtrack with energetic, arcade-style tracks.
 
-At its heart, UberThump offers both single-player and multiplayer experiences. In single-player modes, players can tackle the endless Classic arcade mode, experience the narrative-driven Awakening mode with its evolution system, or progress through the four-tier Totally Not Scripted story campaign. The multiplayer component transforms the experience into a competitive PvP battle where two players loot and level for an initial phase before the arena shrinks with rising lava, forcing them into direct combat.
+UberThump offers multiple single-player experiences. Players can tackle the endless Classic arcade mode, experience the narrative-driven Awakening mode with its evolution system, progress through the four-tier Totally Not Scripted story campaign, or explore creative freedom in Pantheon mode.
 
 ---
 
 ## Getting Started
 
-To play UberThump, simply open `index.html` in a modern web browser that supports WebGL. The game runs entirely client-side with no server requirements for single-player modes. For multiplayer functionality, the game connects to WebSocket servers for real-time synchronization between players.
+To play UberThump, simply open `index.html` in a modern web browser that supports WebGL. The game runs entirely client-side with no server requirements.
 
 Upon launching, you will be greeted by the main menu featuring the animated UBERTHUMP title with its characteristic RGB-shifting underline. From here, you can enter the arena to begin playing, access the Bestiary to view information about enemies and characters you have encountered, or visit the Forge for additional game features.
 
-The first time you play, you will have access to two starting characters: MMOOVT (a tanky knight with a powerful sword) and Fox (a fast-moving caster with seeking fireballs). Additional characters are unlocked by completing specific in-game achievements and challenges, encouraging experimentation with different playstyles and repeated runs.
+The first time you play, you will have access to three starting characters: MMOOVT (a tanky knight with a powerful sword), Fox (a fast-moving caster with seeking fireballs), and Boberto (a summoner with ghost minions). Additional characters are unlocked by completing specific in-game achievements and challenges, encouraging experimentation with different playstyles and repeated runs.
 
 ---
 
@@ -71,23 +70,17 @@ Each tier in TNS unlocks additional characters for use in that mode specifically
 - **Tier 3**: Sir Chad and Boberto join the roster to fight Chadbark (45,000 HP)
 - **Tier 4**: All characters are available for the final confrontation with Barkvader (100,000 HP)
 
-Progress through TNS tiers is saved between sessions, and completing certain tiers unlocks new characters for use across all game modes. The mode offers a curated difficulty curve and story progression that differs from the procedural challenge of other modes.
+Progress through TNS tiers is saved between sessions, and completing certain tiers unlocks new characters for use across all game modes. The mode offers a curated difficulty curve and story progression that differs from the procedural challenge of other modes. Unlocking Pantheon mode requires completing Story Mode.
 
-### Multiplayer (PvP) Mode
+### Pantheon (Creative Mode)
 
-Multiplayer mode transforms UberThump into a competitive 1v1 arena battle. Two players connect through the lobby system and compete in real-time, with the match structured in two distinct phases.
-
-During the initial looting phase, both players independently explore the procedurally generated map, fighting enemies that drop double the normal amount of coins and experience orbs. This phase lasts for a configurable time period (default 10 minutes), during which players race to build the strongest possible character through strategic upgrade choices and efficient farming.
-
-When the timer expires, overtime activates and the competitive phase begins. Lava rises from the arena edges, progressively shrinking the playable area while players can now damage each other directly. The match continues until one player dies, with the survivor declared the winner. Post-match, players can communicate through an integrated chat system.
-
-Multiplayer matches use seeded random number generation to ensure both players experience the same procedurally generated terrain and enemy spawn patterns, maintaining fairness despite the distributed nature of the game.
+Pantheon is a creative sandbox mode unlocked after completing Story Mode. It features flight, world building capabilities, and the ability to export custom worlds. This mode is perfect for experimentation and exploring the game's mechanics without the pressure of survival.
 
 ---
 
 ## Playable Characters
 
-UberThump features eight playable characters, each with distinct statistics, abilities, and starting weapons. Two characters are available from the start, while the remaining six must be unlocked through gameplay achievements.
+UberThump features eight playable characters, each with distinct statistics, abilities, and starting weapons. Three characters are available from the start, while the remaining five must be unlocked through gameplay achievements.
 
 ### MMOOVT (Unlocked by Default)
 
@@ -96,6 +89,10 @@ MMOOVT is a heavily armored knight designed for players who prefer a tanky, up-c
 ### Fox (Unlocked by Default)
 
 Fox represents the opposite end of the spectrum from MMOOVT, offering a fast-moving caster playstyle with only 80 HP but exceptional speed and area-of-effect damage potential. The Fireball starting weapon launches rapid-fire seeking projectiles that home in on nearby enemies, allowing Fox players to focus on positioning and dodging rather than aiming. This character excels at kiting enemies and maintaining distance while dealing consistent damage across multiple targets.
+
+### Boberto (Unlocked by Default)
+
+Boberto is a summoner character with only 90 HP but a unique minion-based playstyle. The Spooky Bois starting weapon spawns friendly ghost allies that fight alongside the player, attacking enemies independently. Boberto also possesses a double jump ability for enhanced mobility and vertical navigation.
 
 ### Calcium (Unlockable)
 
@@ -115,11 +112,7 @@ Monke offers a primal, highly mobile playstyle with 130 HP and very fast movemen
 
 ### Sir Chad (Unlockable)
 
-Sir Chad represents the pinnacle of tank gameplay, possessing an extraordinary 800 HP that makes the character nearly unkillable by normal enemies. Despite heavy, slow movement, Sir Chad wields the Giga Sword, which deals massive damage in wide arcs. The character's intimidating presence affects nearby enemies (primarily through flavor text rather than mechanical effects). Sir Chad has the most complex unlock requirement: players must first unlock GigaChad AND upgrade the Spinning Blade weapon to Level 5.
-
-### Boberto (Unlockable)
-
-Boberto is a summoner character with only 90 HP but a unique minion-based playstyle. The Spooky Bois starting weapon spawns friendly ghost allies that fight alongside the player, attacking enemies independently. Boberto also possesses a double jump ability for enhanced mobility and vertical navigation. This character has the most demanding unlock requirement in the game: players must find the Secret Note hidden somewhere in the world AND unlock all five other unlockable characters (Calcium, GigaChad, Blitz, Monke, and Sir Chad).
+Sir Chad represents the pinnacle of tank gameplay, possessing an extraordinary 800 HP that makes the character nearly unkillable by normal enemies. Despite heavy, slow movement, Sir Chad wields the Giga Sword, which deals massive damage in wide arcs. Sir Chad has the most complex unlock requirement: players must first unlock GigaChad AND upgrade the Spinning Blade weapon to Level 5.
 
 ---
 
@@ -142,7 +135,7 @@ Each character begins with a unique weapon that cannot be unequipped or replaced
 
 ### Unlockable Weapons
 
-During level-up events, players may be offered new weapons to add to their loadout. By default, players can equip up to 3 active weapons simultaneously, though the "Infinite Weapon Slots" lobby setting removes this restriction.
+During level-up events, players may be offered new weapons to add to their loadout. By default, players can equip up to 3 active weapons simultaneously in Classic mode, or up to 6 weapons in Story Mode.
 
 **Aura Weapons** deal passive damage to enemies within their radius without requiring player input:
 - **Spike Ring**: Pulsing ring of spikes that damages touching enemies
@@ -184,7 +177,7 @@ Beyond weapons, the level-up system offers two additional categories of characte
 
 ### Runes
 
-Runes provide permanent stat bonuses for the duration of a run. Players can equip up to 4 runes simultaneously, making rune selection a strategic decision about which stats to prioritize.
+Runes provide permanent stat bonuses for the duration of a run. Players can equip up to 4 runes simultaneously in Classic mode, or up to 13 runes in Story Mode, making rune selection a strategic decision about which stats to prioritize.
 
 - **Lanky Hands**: Increases pickup range by 40%, making it easier to collect coins and XP orbs
 - **Speed Boost**: Increases movement speed by 15%, improving both offense and evasion
@@ -257,7 +250,7 @@ TNS mode features four specific bosses with fixed health values:
 
 ### Procedural Generation
 
-UberThump's arenas are procedurally generated using a seed-based system that ensures consistent terrain across multiplayer matches while providing variety between runs. The world generation creates varied terrain with multiple elevation levels, platforms, ramps, and natural obstacles.
+UberThump's arenas are procedurally generated using a seed-based system that provides variety between runs. The world generation creates varied terrain with multiple elevation levels, platforms, ramps, and natural obstacles.
 
 The central area of the map contains a safe arena with a radius of approximately 36 units, surrounded by a lava moat. During normal gameplay, this provides a large space for combat and movement. When overtime activates, the lava begins rising, progressively shrinking the safe area and forcing players toward the center.
 
@@ -298,7 +291,7 @@ XP orbs have automatic tracking behavior, moving toward the player when within 8
 
 ### Coins and Economy
 
-Coins are dropped by enemies based on the formula: `1 + level * 0.25`, where level refers to the enemy's level. In multiplayer mode, coin drops are doubled to accelerate the looting phase.
+Coins are dropped by enemies based on the formula: `1 + level * 0.25`, where level refers to the enemy's level.
 
 Coins serve as currency for opening chests, with chest costs scaling based on the player's current coin total. This prevents players from hoarding coins indefinitely while still rewarding efficient farming.
 
@@ -313,59 +306,12 @@ Each unlockable character has specific requirements:
 | Monke | Upgrade Bananerang to Level 3 AND find the hidden crate |
 | GigaChad | Upgrade any aura weapon to Level 3 AND unlock Monke first |
 | Sir Chad | Unlock GigaChad AND upgrade Spinning Blade to Level 5 |
-| Boberto | Find the Secret Note AND unlock all other characters |
 
 Unlock progress is tracked across sessions and stored in local storage, ensuring that partial progress is not lost.
 
-### Multiplayer Unlock
-
-Access to multiplayer mode is unlocked by completing Tier 1 in Classic mode. This ensures new players have a basic understanding of game mechanics before entering competitive matches.
-
 ### TNS Tier Progress
 
-Totally Not Scripted mode tracks tier progress separately, saving which tiers have been completed. Each completed tier unlocks the next tier's character pool and boss encounter.
-
----
-
-## Multiplayer System
-
-### Networking Architecture
-
-UberThump's multiplayer uses WebsimSocket for real-time communication between players. The system synchronizes player positions, health, equipped weapons, and game events at approximately 100ms intervals to balance responsiveness with bandwidth efficiency.
-
-To ensure fairness, both clients generate the same procedurally generated world using a shared seed derived from the match ID and player IDs. This means terrain, enemy spawns, and chest locations are identical for both players despite being generated locally.
-
-### Matchmaking and Lobbies
-
-The multiplayer flow begins at the Server Browser, which displays open lobbies available to join. Players can either join an existing lobby or create a new one with custom settings.
-
-**Lobby Settings**:
-- **Mode**: PVP (competitive) or Survival (cooperative)
-- **Time Limit**: 5, 10, or 15 minutes (or 1 minute for quick matches)
-- **Loot Multiplier**: 0.5x to 5.0x (affects coin and XP drop rates)
-- **Spawn Multiplier**: 0.5x to 5.0x (affects enemy spawn frequency)
-- **Infinite Weapon Slots**: Toggle to remove the 3-weapon limit
-
-Once both players have joined and selected their characters, the host can start the match. Character selection prevents duplicate picks, ensuring each player has a unique character.
-
-### Match Flow
-
-1. **Looting Phase**: Both players explore independently, fighting enemies that drop double loot. Players cannot damage each other during this phase.
-
-2. **Overtime Activation**: When the timer expires, overtime begins. Lava starts rising from the arena edges.
-
-3. **PvP Phase**: Players can now damage each other directly. The shrinking safe area forces eventual confrontation.
-
-4. **Resolution**: The match ends when one player dies. The survivor wins.
-
-5. **Post-Match**: A chat system allows players to communicate after the match concludes.
-
-### Multiplayer HUD
-
-The in-game HUD expands during multiplayer to show both players' status:
-- **Top-Left (Green Border)**: Local player's health, level, and equipment
-- **Top-Right (Red Border)**: Remote player's health, level, and equipment
-- **Center**: Match timer counting down to overtime
+Totally Not Scripted mode tracks tier progress separately, saving which tiers have been completed. Each completed tier unlocks the next tier's character pool and boss encounter. Completing all four tiers unlocks Pantheon (Creative) mode.
 
 ---
 
@@ -396,7 +342,6 @@ The game supports touch controls through the NippleJS virtual joystick library, 
 
 - **THREE.js (v0.160.0)**: 3D rendering engine for WebGL graphics
 - **Cannon.js**: Physics simulation for collision and movement
-- **WebSocket/WebsimSocket**: Real-time multiplayer communication
 - **NippleJS**: Virtual joystick for touch/mobile support
 
 ### File Structure
@@ -404,11 +349,14 @@ The game supports touch controls through the NippleJS virtual joystick library, 
 ```
 Cool-Game/
 ├── index.html      # HTML structure, CSS styling, UI elements
-├── main.js         # Entry point, menu system, lobby management
+├── main.js         # Entry point, menu system, game initialization
 ├── game/
-│   └── game.js     # Core game engine, world generation, combat
-└── utils/
-    └── game.js     # Utility functions, particle system, RNG
+│   ├── game.js     # Core game engine, world generation, combat
+│   ├── config.js   # Game configuration and constants
+│   ├── utils.js    # Utility functions, particle system, RNG
+│   ├── StateManager.js  # Player data persistence
+│   └── EventEmitter.js  # Event bus system
+└── [assets]        # Music, sound effects, and textures
 ```
 
 ### Visual Rendering
@@ -430,18 +378,36 @@ Material systems include PBR (physically-based rendering) for realistic surfaces
 
 ### Audio System
 
-Sound effects are triggered for combat events:
+The game features an extensive original soundtrack and sound effects:
+
+**Sound Effects:**
 - `bonk.mp3`: Hit and attack sounds
 - `boom.mp3`: Explosion effects
 
-Background music features a 5-track playlist that shuffles automatically:
+**Background Music Playlist:**
 1. She Went Uber On My Thump
 2. Unthumpable!
 3. Thumpin' Around
-4. Thump Thump, IDK WHAT THE MEANS BRO
+4. Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}
 5. Wednesday morning Thump it's 9am
 
-Sir Chad has a unique character theme that plays instead of the standard playlist.
+**Special Tracks:**
+- `The Thumps Arent Messing Around.mp3`: Overtime/intense battle music
+- `THUMP ME UP BEFORE YOU GO!!!.mp3`: Pantheon creative mode music
+- `MY FRIENDS WONT STOP THUMPING AND NOW I AM THUMPING TOO (send help).mp3`: Special event music
+- `Game Over.mp3`: Plays on death alongside a ducked version of the current track
+
+**Character Theme Songs:**
+- `SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3`
+- `GIGACHAD'S THEME.mp3`
+- `BLITZ'S THEME.mp3`
+- `CALCIUM'S THEME.mp3`
+- `MONKE'S THEME.mp3`
+
+When a character theme is enabled, it plays instead of the standard playlist and loops continuously.
+
+**Game Over Music Behavior:**
+When the player dies, the current background music is ducked (volume lowered significantly and slowed to half speed) while the Game Over music plays on top at 50% volume, creating a dramatic death sequence.
 
 ---
 
@@ -453,11 +419,14 @@ UberThump uses browser localStorage to persist player progress between sessions.
 |-----|---------|
 | `uberthump_has_played` | Tracks first-run status for tutorial display |
 | `uberthump_unlocks` | Stores character unlock states |
-| `uberthump_multiplayer_unlocked` | Tracks multiplayer access |
 | `uberthump_tns_tier` | Story mode progress (1-4) |
-| `uberthump_secret_note_unlocked` | Meta-story/Boberto unlock progress |
+| `uberthump_tns_saves` | Story mode save slots |
+| `uberthump_pantheon_unlocked` | Tracks Pantheon mode access |
+| `uberthump_secret_note_unlocked` | Meta-story progress |
 | `uberthump_skeletonKills` | Cumulative skeleton kill counter |
 | `uberthump_weaponLevels` | Weapon leveling statistics |
+| `uberthump_history` | Run history (last 10 runs) |
+| `uberthump_settings` | Player preferences (pixel mode, volumes, etc.) |
 
 All save data is local to the browser and not synced to any server. Clearing browser data will reset all progress.
 
@@ -471,7 +440,7 @@ The settings panel includes a map code override field for custom map generation 
 
 ## Conclusion
 
-UberThump represents a comprehensive action roguelike experience that combines accessible gameplay with deep character progression and strategic build variety. From the straightforward satisfaction of mowing down enemy hordes to the tense strategic decisions of competitive multiplayer, the game offers multiple engaging experiences within its retro-styled arena framework.
+UberThump represents a comprehensive action roguelike experience that combines accessible gameplay with deep character progression and strategic build variety. From the straightforward satisfaction of mowing down enemy hordes to the challenging boss encounters, the game offers multiple engaging experiences within its retro-styled arena framework.
 
 Whether you prefer the tanky resilience of MMOOVT, the blazing speed of Fox, the escalating momentum of Calcium, or the summoner gameplay of Boberto, there is a playstyle to match every preference. The unlock system provides long-term goals that reward exploration and mastery, while the multiple game modes ensure variety across play sessions.
 

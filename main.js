@@ -110,10 +110,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const themeToggleContainer = document.getElementById('theme-toggle-container');
     const modeHelperText = document.getElementById('mode-helper-text');
 
-    // Multiplayer unlock flag: earned by beating Tier 1 in Classic (Arcade).
-    function isMultiplayerUnlocked() {
-        try { return !!localStorage.getItem('uberthump_multiplayer_unlocked'); } catch (e) { return false; }
-    }
     // TNS Unlock: Requires Calcium
     function isTNSUnlocked() {
         return isCharacterUnlocked('CALCIUM');
@@ -127,21 +123,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function updateGamemodeSelectState() {
         if (!modeSelect) return;
-        const multiOption = Array.from(modeSelect.options).find(o => o.value === 'MULTI');
         const tnsOption = Array.from(modeSelect.options).find(o => o.value === 'TNS');
         const panOption = Array.from(modeSelect.options).find(o => o.value === 'PANTHEON');
-        
-        const mpUnlocked = isMultiplayerUnlocked();
+
         const tnsUnlocked = isTNSUnlocked();
         const panUnlocked = isPantheonUnlocked();
 
-        if (multiOption) {
-            multiOption.disabled = !mpUnlocked;
-            if (!mpUnlocked && modeSelect.value === 'MULTI') {
-                modeSelect.value = 'ARCADE';
-                selectedMode = 'ARCADE';
-            }
-        }
         if (tnsOption) {
             tnsOption.disabled = !tnsUnlocked;
             if (!tnsUnlocked && modeSelect.value === 'TNS') {
@@ -161,10 +148,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (modeHelperText) {
             modeHelperText.style.display = 'block';
-            if (modeSelect.value === 'MULTI' && !mpUnlocked) {
-                modeHelperText.style.color = '#ff4444';
-                modeHelperText.textContent = 'Multiplayer unlocks after beating Tier 1 in CLASSIC.';
-            } else if (!tnsUnlocked && modeSelect.value === 'TNS') {
+            if (!tnsUnlocked && modeSelect.value === 'TNS') {
                  modeHelperText.style.color = '#ff4444';
                  modeHelperText.textContent = 'Unlock CALCIUM to play Story Mode.';
             } else if (modeSelect.value === 'PANTHEON' && !panUnlocked) {
@@ -381,21 +365,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (menuScene) menuScene.setPreviewCharacter('MMOOVT');
                 if (selectionHeader) selectionHeader.style.display = 'none';
                 
-            } else if (selectedMode === 'MULTI') {
-                // Multiplayer: triggers lobby flow when START is pressed.
-                charSelectGrid.style.display = 'none'; 
-                if (charDetailsEl) charDetailsEl.style.display = 'none';
-                
-                if (pixelToggleBottom) {
-                    pixelToggleBottom.checked = true;
-                    pixelToggleBottom.disabled = true;
-                    pixelateEnabled = true;
-                    if (menuScene && typeof menuScene.setPixelMode === 'function') menuScene.setPixelMode(true);
-                }
-                awakeningMsg.style.display = 'block';
-                awakeningMsg.textContent = 'MULTIPLAYER: 1v1 duel after looting. Monsters give double coins/xp.';
-                if (selectionHeader) selectionHeader.style.display = 'none';
-
             } else if (selectedMode === 'TNS') {
                 // Totally Not Scripted (Story Mode)
                 // Hide character grid initially - user selects character AFTER choosing a save slot
@@ -3186,12 +3155,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     startBtn.addEventListener('click', (e) => {
-        // Intercept MULTI to open browser instead of random match
-        if (selectedMode === 'MULTI') {
-            openBrowser();
-            return;
-        }
-
         // Intercept TNS
         if (selectedMode === 'TNS') {
             // If we are in the "Pick Character for New Save" phase
