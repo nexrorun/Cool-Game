@@ -43,7 +43,16 @@ async function loadTextureAsync(url, fallbackColor, repeatX = 1, repeatY = 1) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         const imageBitmap = await createImageBitmap(blob);
-        const texture = new THREE.CanvasTexture(imageBitmap);
+
+        // Draw ImageBitmap onto a canvas - CanvasTexture requires an actual canvas element
+        const canvas = document.createElement('canvas');
+        canvas.width = imageBitmap.width;
+        canvas.height = imageBitmap.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(imageBitmap, 0, 0);
+        imageBitmap.close(); // Release the ImageBitmap resources
+
+        const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(repeatX, repeatY);
