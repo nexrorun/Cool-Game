@@ -1,5 +1,8 @@
-import { Game } from './game/game.js';
+import { Game, preloadGameTextures } from './game/game.js';
 import * as THREE from 'three';
+
+// Global preloaded textures cache
+let preloadedTextures = null;
 
 // Properly encode a file path for URLs - handles special characters like parentheses, braces, apostrophes
 function encodeAssetPath(path) {
@@ -13,7 +16,7 @@ function encodeAssetPath(path) {
 }
 
 // Fallback color texture generator
-function createColorTexture(color, width = 64, height = 64) {
+function createColorTexture(color, width = 64, height = 64, repeatX = 1, repeatY = 1) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -23,35 +26,9 @@ function createColorTexture(color, width = 64, height = 64) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
-}
-
-// Load texture with fallback color - returns fallback immediately, swaps in real texture on success
-function loadTextureWithFallback(url, fallbackColor, repeatX = 1, repeatY = 1) {
-    // Start with fallback texture
-    const fallback = createColorTexture(fallbackColor);
-    fallback.repeat.set(repeatX, repeatY);
-    fallback.fallbackColor = fallbackColor;
-
-    const texLoader = new THREE.TextureLoader();
-    texLoader.load(
-        encodeAssetPath(url),
-        // onLoad - texture loaded successfully, copy image to fallback
-        (loadedTex) => {
-            console.log(`Texture loaded: ${url}`);
-            fallback.image = loadedTex.image;
-            fallback.needsUpdate = true;
-        },
-        // onProgress
-        undefined,
-        // onError - keep fallback
-        (err) => {
-            console.warn(`Failed to load texture ${url}, using fallback color ${fallbackColor}`);
-        }
-    );
-
-    return fallback;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -2273,11 +2250,19 @@ window.addEventListener('DOMContentLoaded', () => {
             this.targetCameraLook = this.overviewLook.clone();
             this.cameraTransitionSpeed = 0;
 
-            // Texture Loading - with color fallbacks if loading fails
+            // Texture Loading - use preloaded textures if available, otherwise use color fallbacks
             // Grass = green, Side = brown, Rock = grey
-            this.grassTex = loadTextureWithFallback('./a-texture-for-grass.jpg', '#228B22', 4, 4);
-            this.sideTex = loadTextureWithFallback('./side.jpg', '#8B4513', 2, 1);
-            this.rockTex = loadTextureWithFallback('./texture-for-grey-rock.jpg', '#808080', 6, 6);
+            if (preloadedTextures) {
+                this.grassTex = preloadedTextures.grassTex;
+                this.sideTex = preloadedTextures.sideTex;
+                this.rockTex = preloadedTextures.rockTex;
+            } else {
+                // Fallback to color textures if preloading hasn't happened yet
+                console.warn('MenuBackground: Textures not preloaded, using color fallbacks');
+                this.grassTex = createColorTexture('#228B22', 64, 64, 4, 4);
+                this.sideTex = createColorTexture('#8B4513', 64, 64, 2, 1);
+                this.rockTex = createColorTexture('#808080', 64, 64, 6, 6);
+            }
 
             // Pixelation Setup
             this.pixelRatio = 0.3;
@@ -2975,9 +2960,21 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if (menuCanvas) {
-        menuScene = new MenuBackground(menuCanvas);
-    }
+    // Preload textures before creating menu background
+    (async () => {
+        if (!preloadedTextures) {
+            try {
+                preloadedTextures = await preloadGameTextures();
+                console.log('Textures preloaded for menu');
+            } catch (e) {
+                console.error('Failed to preload textures for menu:', e);
+            }
+        }
+
+        if (menuCanvas) {
+            menuScene = new MenuBackground(menuCanvas);
+        }
+    })();
 
     // --- Pause overlay wiring & global pause toggle (Escape) ---
     const pauseOverlay = document.getElementById('pause-overlay');
@@ -3371,13 +3368,23 @@ window.addEventListener('DOMContentLoaded', () => {
         // Force pixelate for online modes
         const runPixelate = (mode === 'AWAKENING' || mode === 'MULTI' || mode === 'SURVIVAL') ? true : !!pixelateEnabled;
 
-        setTimeout(() => {
+        setTimeout(async () => {
             // Seed logic
             let seed = null;
             if (currentLobby && currentLobby.id) {
                 seed = stringToSeed(currentLobby.id);
             }
-            
+
+            // Preload textures if not already loaded
+            if (!preloadedTextures) {
+                try {
+                    preloadedTextures = await preloadGameTextures();
+                    console.log('Textures preloaded successfully');
+                } catch (e) {
+                    console.error('Failed to preload textures:', e);
+                }
+            }
+
             // Re-instantiate game to ensure clean state with new settings
             if (game) {
                 // Cleanup old game loosely?
@@ -3390,15 +3397,15 @@ window.addEventListener('DOMContentLoaded', () => {
                 } catch(e){}
             }
 
-            game = new Game(selectedCharacter, runPixelate, useCharacterTheme, mode, room, lobbySettings, seed);
+            game = new Game(selectedCharacter, runPixelate, useCharacterTheme, mode, room, lobbySettings, seed, preloadedTextures);
             game.init();
-            
+
             if (typeof game.startIntro === 'function') {
                 game.startIntro();
             }
 
             if (loadingOverlay) loadingOverlay.classList.remove('active');
-            if(charDetailsEl) charDetailsEl.style.display = 'none'; 
+            if(charDetailsEl) charDetailsEl.style.display = 'none';
         }, 2200);
     }
 });
