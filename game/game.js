@@ -21,7 +21,7 @@ function encodeAssetPath(path) {
 }
 
 // Fallback color texture generator
-function createColorTexture(color, width = 64, height = 64) {
+function createColorTexture(color, width = 64, height = 64, repeatX = 1, repeatY = 1) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -31,35 +31,48 @@ function createColorTexture(color, width = 64, height = 64) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
 }
 
-// Load texture with fallback color - returns fallback immediately, swaps in real texture on success
+// Async texture loader - returns a Promise that resolves with the loaded texture or fallback
+async function loadTextureAsync(url, fallbackColor, repeatX = 1, repeatY = 1) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        const imageBitmap = await createImageBitmap(blob);
+        const texture = new THREE.CanvasTexture(imageBitmap);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(repeatX, repeatY);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        console.log(`Texture loaded: ${url}`);
+        return texture;
+    } catch (err) {
+        console.warn(`Failed to load texture ${url}, using fallback color ${fallbackColor}:`, err);
+        return createColorTexture(fallbackColor, 64, 64, repeatX, repeatY);
+    }
+}
+
+// Preload all game textures - call this before creating a Game instance
+export async function preloadGameTextures() {
+    const [grassTex, sideTex, rockTex] = await Promise.all([
+        loadTextureAsync('./a-texture-for-grass.jpg', '#228B22', 4, 4),
+        loadTextureAsync('./side.jpg', '#8B4513', 2, 1),
+        loadTextureAsync('./texture-for-grey-rock.jpg', '#808080', 6, 6)
+    ]);
+    return { grassTex, sideTex, rockTex };
+}
+
+// Legacy sync function for backwards compatibility - now loads properly via preloaded textures
 function loadTextureWithFallback(url, fallbackColor, repeatX = 1, repeatY = 1) {
-    // Start with fallback texture
-    const fallback = createColorTexture(fallbackColor);
-    fallback.repeat.set(repeatX, repeatY);
-    fallback.fallbackColor = fallbackColor;
-
-    const texLoader = new THREE.TextureLoader();
-    texLoader.load(
-        encodeAssetPath(url),
-        // onLoad - texture loaded successfully, copy image to fallback
-        (loadedTex) => {
-            console.log(`Texture loaded: ${url}`);
-            fallback.image = loadedTex.image;
-            fallback.needsUpdate = true;
-        },
-        // onProgress
-        undefined,
-        // onError - keep fallback
-        (err) => {
-            console.warn(`Failed to load texture ${url}, using fallback color ${fallbackColor}`);
-        }
-    );
-
-    return fallback;
+    // This function is now only used as a fallback if textures weren't preloaded
+    // It creates a color texture since we can't load synchronously
+    console.warn(`loadTextureWithFallback called for ${url} - textures should be preloaded!`);
+    return createColorTexture(fallbackColor, 64, 64, repeatX, repeatY);
 }
 
 const RARITIES = {
@@ -205,7 +218,7 @@ const CHARACTERS = {
 window.CHARACTERS = CHARACTERS;
 
 export class Game {
-    constructor(characterKey = 'MMOOVT', pixelateEnabled = true, useCharacterTheme = false, gameMode = 'ARCADE', room = null, lobbySettings = null, seed = null) {
+    constructor(characterKey = 'MMOOVT', pixelateEnabled = true, useCharacterTheme = false, gameMode = 'ARCADE', room = null, lobbySettings = null, seed = null, preloadedTextures = null) {
         this.container = document.getElementById('game-container');
         this.debugMode = false; // Dev setting for logs
         this.room = room; // WebsimSocket instance
@@ -463,11 +476,19 @@ export class Game {
         this.secretNote = null;
         this.runFoundSecretNote = false;
         
-        // Textures - with color fallbacks if loading fails
+        // Textures - use preloaded textures if available, otherwise create color fallbacks
         // Grass = green, Side = brown, Rock = grey
-        this.grassTex = loadTextureWithFallback('./a-texture-for-grass.jpg', '#228B22', 4, 4);
-        this.sideTex = loadTextureWithFallback('./side.jpg', '#8B4513', 2, 1);
-        this.rockTex = loadTextureWithFallback('./texture-for-grey-rock.jpg', '#808080', 6, 6);
+        if (preloadedTextures) {
+            this.grassTex = preloadedTextures.grassTex;
+            this.sideTex = preloadedTextures.sideTex;
+            this.rockTex = preloadedTextures.rockTex;
+        } else {
+            // Fallback to color textures if not preloaded (shouldn't happen in normal flow)
+            console.warn('Textures not preloaded! Using color fallbacks.');
+            this.grassTex = createColorTexture('#228B22', 64, 64, 4, 4);
+            this.sideTex = createColorTexture('#8B4513', 64, 64, 2, 1);
+            this.rockTex = createColorTexture('#808080', 64, 64, 6, 6);
+        }
         
         // Stats - Speed boosted by 1.5x as requested
         const baseFireRate = this.characterConfig ? this.characterConfig.fireRate : 0.8;
