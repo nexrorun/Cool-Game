@@ -5913,12 +5913,16 @@ export class Game {
         if (this.gameMode === 'AWAKENING') return;
 
         try {
-            // 1/100 chance to spawn
-            if (Math.random() > 0.01) return;
+            // Check for dev override (supamonke code)
+            let forceCabin = false;
+            try { forceCabin = localStorage.getItem('uberthump_force_cabin') === 'true'; } catch(e) {}
 
-            // If player has already found the diary, don't spawn again
+            // 1/100 chance to spawn (or 100% if dev override active)
+            if (!forceCabin && Math.random() > 0.01) return;
+
+            // If player has already found the diary, don't spawn again (unless forced)
             try {
-                if (localStorage.getItem('uberthump_diary_unlocked') === 'true') {
+                if (!forceCabin && localStorage.getItem('uberthump_diary_unlocked') === 'true') {
                     return;
                 }
             } catch (e) {}
