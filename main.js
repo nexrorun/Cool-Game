@@ -2280,6 +2280,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 } else {
                     alert("Start game first.");
                 }
+                // Also enable guaranteed cabin spawn for next run
+                try { localStorage.setItem('uberthump_force_cabin', 'true'); } catch(e) {}
             } else {
                 alert("ACCESS DENIED.");
             }
@@ -2297,6 +2299,8 @@ window.addEventListener('DOMContentLoaded', () => {
                     window.__uberthump_unlockAll();
                     alert('All characters unlocked!');
                 }
+                // Also enable guaranteed cabin spawn for next run
+                try { localStorage.setItem('uberthump_force_cabin', 'true'); } catch(e) {}
             }
         });
     }
