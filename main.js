@@ -2274,14 +2274,19 @@ window.addEventListener('DOMContentLoaded', () => {
     if (mapCodeBtn) {
         mapCodeBtn.addEventListener('click', () => {
             if (mapCodeInput.value === 'supamonke123') {
+                // Enable guaranteed cabin spawn
+                try { localStorage.setItem('uberthump_force_cabin', 'true'); } catch(e) {}
+
                 if (game) {
                     game.revealMap();
-                    alert("DEV OVERRIDE: Fog of War Removed.");
+                    // If cabin doesn't exist yet, spawn it now
+                    if (!game.diaryCabin) {
+                        game.forceSpawnDiaryCabin();
+                    }
+                    alert("DEV OVERRIDE: Fog removed + Cabin spawned (check map)!");
                 } else {
-                    alert("Start game first.");
+                    alert("DEV OVERRIDE: Cabin will spawn in next game!");
                 }
-                // Also enable guaranteed cabin spawn for next run
-                try { localStorage.setItem('uberthump_force_cabin', 'true'); } catch(e) {}
             } else {
                 alert("ACCESS DENIED.");
             }
@@ -2295,12 +2300,20 @@ window.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             const code = prompt('Enter code:');
             if (code === 'supamonke123') {
+                // Enable guaranteed cabin spawn
+                try { localStorage.setItem('uberthump_force_cabin', 'true'); } catch(e) {}
+
                 if (window.__uberthump_unlockAll) {
                     window.__uberthump_unlockAll();
-                    alert('All characters unlocked!');
                 }
-                // Also enable guaranteed cabin spawn for next run
-                try { localStorage.setItem('uberthump_force_cabin', 'true'); } catch(e) {}
+
+                // If game is running, spawn cabin now
+                if (game && !game.diaryCabin) {
+                    game.forceSpawnDiaryCabin();
+                    alert('All characters unlocked + Cabin spawned (check map)!');
+                } else {
+                    alert('All characters unlocked + Cabin will spawn in next game!');
+                }
             }
         });
     }
