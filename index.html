@@ -1651,6 +1651,7 @@
 
         <!-- Settings / Dev Button -->
         <div style="position:fixed; bottom:22px; right:22px; z-index:40; pointer-events:auto; display:flex; gap:10px;">
+            <button id="soundtrack-btn" style="padding:10px 14px; font-size:0.8rem; background: #1a1a2e; border-color:#4a4a8a;">SOUNDTRACK</button>
             <button id="lore-btn" style="padding:10px 14px; font-size:0.8rem; background: #222; border-color:#888;">LORE</button>
             <!-- Secret Note button: looks like a small piece of paper -->
             <button id="secret-note-btn" style="
@@ -1991,6 +1992,67 @@
                 text-transform:uppercase;
                 letter-spacing:0.1em;
             ">Tap outside book to close</div>
+        </div>
+    </div>
+
+    <!-- Soundtrack Player Overlay -->
+    <div id="soundtrack-overlay" style="
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,0.92);
+        z-index:2000;
+        display:none;
+        align-items:center;
+        justify-content:center;
+        backdrop-filter:blur(6px);
+    ">
+        <div id="soundtrack-panel" style="
+            width:90%;
+            max-width:500px;
+            max-height:80vh;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            border:3px solid #4a4a8a;
+            border-radius:8px;
+            padding:20px;
+            color:#fff;
+            font-family:'Space Mono', monospace;
+            overflow-y:auto;
+            box-shadow: 0 0 40px rgba(74,74,138,0.5);
+        ">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;border-bottom:1px solid #4a4a8a;padding-bottom:10px;">
+                <div style="font-size:1.2rem;color:#ffd700;font-weight:bold;">SOUNDTRACK</div>
+                <button id="soundtrack-close" style="padding:6px 12px;border:2px solid #fff;background:transparent;color:#fff;cursor:pointer;font-size:0.8rem;border-radius:3px;">CLOSE</button>
+            </div>
+
+            <div id="now-playing" style="
+                background:rgba(255,215,0,0.1);
+                border:1px solid #ffd700;
+                border-radius:4px;
+                padding:10px;
+                margin-bottom:15px;
+                text-align:center;
+                display:none;
+            ">
+                <div style="font-size:0.7rem;color:#aaa;margin-bottom:4px;">NOW PLAYING</div>
+                <div id="now-playing-title" style="color:#ffd700;font-size:0.9rem;"></div>
+            </div>
+
+            <div id="soundtrack-list" style="display:flex;flex-direction:column;gap:8px;">
+                <!-- Tracks populated by JS -->
+            </div>
+
+            <div style="margin-top:15px;padding-top:10px;border-top:1px solid #333;text-align:center;">
+                <button id="soundtrack-stop" style="
+                    padding:8px 20px;
+                    background:#aa0000;
+                    color:#fff;
+                    border:2px solid #ff4444;
+                    border-radius:4px;
+                    cursor:pointer;
+                    font-family:'Space Mono', monospace;
+                    font-size:0.8rem;
+                ">STOP</button>
+            </div>
         </div>
     </div>
 

@@ -443,6 +443,24 @@ A hidden developer button in the top-left corner (10x10 pixels) provides instant
 
 The settings panel includes a map code override field for custom map generation seeds and an entity log checkbox for verbose debugging output.
 
+### Secret Content
+
+**The Weathered Diary**: A rare cabin has a 1 in 100 chance of spawning in each run. Approaching the cabin causes it to mysteriously fade away, leaving behind a weathered diary. After dying, a DIARY button appears in the main menu, allowing players to read three surviving diary pages that reveal deeper lore about the Void and its true nature. The third page is encrypted...
+
+---
+
+## Soundtrack Player
+
+The game features a dedicated **SOUNDTRACK** button in the menu that opens a full music player. Players can listen to all tracks from the game organized by category:
+
+- **Main**: Core gameplay tracks (She Went Uber On My Thump, Unthumpable!, Thumpin' Around, etc.)
+- **Character**: Individual character theme songs
+- **Overtime**: Intense battle music for overtime phases
+- **Pantheon**: Creative mode ambient music
+- **Menu/Special**: Menu music and game over themes
+
+The soundtrack player displays the currently playing track and allows seamless switching between songs.
+
 ---
 
 ## Conclusion
