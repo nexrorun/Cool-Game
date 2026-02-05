@@ -677,6 +677,8 @@ export class Game {
         this.knightSlashCooldown = 0;
         this.calciumSpeedCharge = 0;
         this.calciumDustTimer = 0;
+        this.calciumPushTimer = 0;      // Timer for skateboard push animation
+        this.calciumPushPhase = 0;      // Current phase of push animation (0 = idle, >0 = pushing)
         this.lastFlexTime = -999;
 
         // Initial HUD
@@ -1350,7 +1352,7 @@ export class Game {
             const tail = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.9), new THREE.MeshStandardMaterial({ color: 0xff7f3f }));
             tail.position.set(0, 0.6, -0.9); tail.rotation.x = 0.4; group.add(tail);
         } else if (type === 'CALCIUM') {
-            verticalVisualOffset = 0.3;
+            verticalVisualOffset = 0.05; // Lowered to keep skateboard wheels on ground
             const boneMat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
             const skullMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 });
             const spine = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.0, 0.25), boneMat);
@@ -3693,7 +3695,7 @@ export class Game {
 
             this.playerLimbs = { legL, legR, armL: legBL, armR: legBR };
         } else if (type === 'CALCIUM') {
-            verticalVisualOffset = 0.3;
+            verticalVisualOffset = 0.05; // Lowered to keep skateboard wheels on ground
             // Calcium – more detailed skeleton riding a skateboard (sideways stance)
             const boneMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, flatShading: true });
             const skullMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, flatShading: true });
@@ -7881,13 +7883,95 @@ export class Game {
     }
 
     updatePlayerAnimation(dt, isMoving) {
-        // Calcium rides the board – no walk cycle animation
-        if (this.characterKey === 'CALCIUM') return;
-        
+        if (!this.playerLimbs) return;
+
+        // Calcium has unique skateboard animations
+        if (this.characterKey === 'CALCIUM') {
+            const { armL, armR, legL, legR } = this.playerLimbs;
+            const inAir = !this.canJump;
+
+            // Jump/Ollie animation - tilt board and raise arms when airborne
+            if (inAir) {
+                // Ollie pose: back leg tucked, front leg extended, arms up for balance
+                if (legL) legL.rotation.x = -0.4;  // Front leg slightly forward
+                if (legR) legR.rotation.x = 0.6;   // Back leg tucked up
+                if (armL) armL.rotation.x = -0.5;  // Arms up for balance
+                if (armR) armR.rotation.x = -0.5;
+                if (armL) armL.rotation.z = -0.3;  // Arms spread out
+                if (armR) armR.rotation.z = 0.3;
+                // Tilt the whole character slightly for ollie effect
+                if (this.playerMesh) {
+                    this.playerMesh.children.forEach(child => {
+                        if (child.geometry && child.geometry.type === 'BoxGeometry' &&
+                            child.geometry.parameters.width === 1.8) {
+                            // This is the skateboard - tilt nose up
+                            child.rotation.z = 0.15;
+                        }
+                    });
+                }
+                this.calciumPushTimer = 0;
+                this.calciumPushPhase = 0;
+            } else {
+                // On ground - reset skateboard tilt
+                if (this.playerMesh) {
+                    this.playerMesh.children.forEach(child => {
+                        if (child.geometry && child.geometry.type === 'BoxGeometry' &&
+                            child.geometry.parameters.width === 1.8) {
+                            child.rotation.z = 0.03; // Original slight tilt
+                        }
+                    });
+                }
+
+                // Push animation when moving on ground
+                if (isMoving) {
+                    this.calciumPushTimer += dt;
+
+                    // Every 0.8 seconds, do a push with the back leg
+                    if (this.calciumPushTimer >= 0.8) {
+                        this.calciumPushTimer = 0;
+                        this.calciumPushPhase = 1.0; // Start push animation
+                    }
+
+                    // Animate the push phase
+                    if (this.calciumPushPhase > 0) {
+                        // Push motion: back leg swings back then returns
+                        const pushProgress = 1.0 - this.calciumPushPhase;
+                        const pushAngle = Math.sin(pushProgress * Math.PI) * 0.8;
+                        if (legR) legR.rotation.x = pushAngle;  // Back leg pushes
+                        if (legL) legL.rotation.x = -pushAngle * 0.2; // Front leg slight bend
+                        // Slight body lean during push
+                        if (armR) armR.rotation.x = pushAngle * 0.3;
+                        if (armL) armL.rotation.x = -pushAngle * 0.2;
+                        this.calciumPushPhase = Math.max(0, this.calciumPushPhase - dt * 2.5);
+                    } else {
+                        // Idle riding pose - slight crouch
+                        const damp = Math.min(1, dt * 8);
+                        if (legL) legL.rotation.x *= (1 - damp);
+                        if (legR) legR.rotation.x *= (1 - damp);
+                        if (armL) armL.rotation.x = (armL.rotation.x * (1 - damp)) + (-0.15 * damp);
+                        if (armR) armR.rotation.x = (armR.rotation.x * (1 - damp)) + (-0.15 * damp);
+                    }
+                    // Reset arm spread
+                    if (armL) armL.rotation.z *= (1 - Math.min(1, dt * 5));
+                    if (armR) armR.rotation.z *= (1 - Math.min(1, dt * 5));
+                } else {
+                    // Idle - smoothly return to neutral stance
+                    const damp = Math.min(1, dt * 6);
+                    if (legL) legL.rotation.x *= (1 - damp);
+                    if (legR) legR.rotation.x *= (1 - damp);
+                    if (armL) armL.rotation.x *= (1 - damp);
+                    if (armR) armR.rotation.x *= (1 - damp);
+                    if (armL) armL.rotation.z *= (1 - damp);
+                    if (armR) armR.rotation.z *= (1 - damp);
+                    this.calciumPushTimer = 0;
+                    this.calciumPushPhase = 0;
+                }
+            }
+            return;
+        }
+
         // Boberto is just a sheet, but has legs. Animate legs only.
         // Handled by generic limb check below.
-
-        if (!this.playerLimbs) return;
 
         const { armL, armR, legL, legR } = this.playerLimbs;
 
