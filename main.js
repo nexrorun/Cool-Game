@@ -1590,6 +1590,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
         { key: 'BOSS_MAIN', title: 'The Gatekeeper', type: 'Boss', hp: 1500, damage: 40, notes: 'Massive health, teleports and fires pitchfork volleys; opens the portal when defeated.' },
 
+        // TNS (Totally Not Scripted) Story Mode Bosses
+        { key: 'BABYBARK', title: 'Babybark', type: 'TNS Boss (Tier 1)', hp: 5000, damage: 15, notes: 'The introductory bark boss; basic attack patterns with moderate damage. First challenge in Story Mode.' },
+        { key: 'SMOLBARK', title: 'Smolbark', type: 'TNS Boss (Tier 2)', hp: 15000, damage: 25, notes: 'Enhanced bark variant with additional abilities and faster attacks. Requires stronger builds to defeat.' },
+        { key: 'CHADBARK', title: 'Chadbark', type: 'TNS Boss (Tier 3)', hp: 45000, damage: 40, notes: 'A formidable bark warrior with devastating attacks and high durability. Test of mid-game mastery.' },
+        { key: 'BARKVADER', title: 'Barkvader', type: 'TNS Boss (Tier 4)', hp: 100000, damage: 60, notes: 'The ultimate bark lord. Complex attack patterns, massive health pool, and relentless aggression. Final boss of Story Mode.' },
+
         // Awakening-specific boss entry (Awakened Bob)
         { key: 'BOB', title: 'Bob (Awakened)', type: 'Awakened Boss', hp: 2000, damage: 35, notes: 'A massive grave guardian risen from the crypts; standard Bob spawns with ~2000 HP, heavy melee attacks and powerful shockwave tantrums. DEADLY_BOB spawns with ~5000 HP and stronger tantrums.' },
 
@@ -2065,6 +2071,153 @@ window.addEventListener('DOMContentLoaded', () => {
                     currentDiaryPage++;
                     updateDiaryPage();
                 }
+            });
+        }
+    }
+
+    // Soundtrack player logic
+    const SOUNDTRACK_TRACKS = [
+        { file: "./She Went Uber On My Thump.mp3", title: "She Went Uber On My Thump", category: "Main" },
+        { file: "./Unthumpable!.mp3", title: "Unthumpable!", category: "Main" },
+        { file: "./Thumpin' Around.mp3", title: "Thumpin' Around", category: "Main" },
+        { file: "./Thump Thump, IDK WHAT THE MEANS BRO {insert crying emoji}.mp3", title: "Thump Thump, IDK WHAT THE MEANS BRO", category: "Main" },
+        { file: "./Wednesday morning Thump it's 9am.mp3", title: "Wednesday Morning Thump", category: "Main" },
+        { file: "./The Thumps Arent Messing Around.mp3", title: "The Thumps Aren't Messing Around", category: "Overtime" },
+        { file: "./THUMP ME UP BEFORE YOU GO!!!.mp3", title: "THUMP ME UP BEFORE YOU GO!!!", category: "Pantheon" },
+        { file: "./MY FRIENDS WONT STOP THUMPING AND NOW I AM THUMPING TOO (send help).mp3", title: "MY FRIENDS WON'T STOP THUMPING", category: "Menu" },
+        { file: "./Game Over.mp3", title: "Game Over", category: "Special" },
+        { file: "./SIR CHADSIRWELLSIRCHADSIRCHADWELLWELL'S THEME.mp3", title: "Sir Chad's Theme", category: "Character" },
+        { file: "./GIGACHAD'S THEME.mp3", title: "GigaChad's Theme", category: "Character" },
+        { file: "./BLITZ'S THEME.mp3", title: "Blitz's Theme", category: "Character" },
+        { file: "./CALCIUM'S THEME.mp3", title: "Calcium's Theme", category: "Character" },
+        { file: "./MONKE'S THEME.mp3", title: "Monke's Theme", category: "Character" }
+    ];
+
+    let soundtrackPlayer = null;
+    let currentTrackTitle = null;
+
+    const soundtrackBtn = document.getElementById('soundtrack-btn');
+    const soundtrackOverlay = document.getElementById('soundtrack-overlay');
+    const soundtrackPanel = document.getElementById('soundtrack-panel');
+    const soundtrackList = document.getElementById('soundtrack-list');
+    const soundtrackClose = document.getElementById('soundtrack-close');
+    const soundtrackStop = document.getElementById('soundtrack-stop');
+    const nowPlaying = document.getElementById('now-playing');
+    const nowPlayingTitle = document.getElementById('now-playing-title');
+
+    function populateSoundtrackList() {
+        if (!soundtrackList) return;
+        soundtrackList.innerHTML = '';
+
+        const categories = ['Main', 'Character', 'Overtime', 'Pantheon', 'Menu', 'Special'];
+        categories.forEach(cat => {
+            const tracks = SOUNDTRACK_TRACKS.filter(t => t.category === cat);
+            if (tracks.length === 0) return;
+
+            const catHeader = document.createElement('div');
+            catHeader.style.cssText = 'font-size:0.7rem;color:#888;margin-top:10px;margin-bottom:5px;text-transform:uppercase;';
+            catHeader.textContent = cat;
+            soundtrackList.appendChild(catHeader);
+
+            tracks.forEach(track => {
+                const btn = document.createElement('button');
+                btn.style.cssText = `
+                    width:100%;
+                    padding:10px 12px;
+                    background:rgba(255,255,255,0.05);
+                    border:1px solid #444;
+                    border-radius:4px;
+                    color:#fff;
+                    font-family:'Space Mono', monospace;
+                    font-size:0.8rem;
+                    text-align:left;
+                    cursor:pointer;
+                    transition:background 0.2s;
+                `;
+                btn.textContent = track.title;
+                btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,215,0,0.2)');
+                btn.addEventListener('mouseleave', () => btn.style.background = 'rgba(255,255,255,0.05)');
+                btn.addEventListener('click', () => playSoundtrackTrack(track));
+                soundtrackList.appendChild(btn);
+            });
+        });
+    }
+
+    async function playSoundtrackTrack(track) {
+        // Stop any current playback
+        stopSoundtrackPlayer();
+
+        try {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+            const buf = await loadSound(track.file);
+            if (!buf) return;
+
+            const src = audioCtx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+            const gain = audioCtx.createGain();
+            gain.gain.value = 0.5;
+            src.connect(gain);
+            gain.connect(audioCtx.destination);
+            src.start(0);
+
+            soundtrackPlayer = { source: src, gain: gain };
+            currentTrackTitle = track.title;
+
+            // Update now playing display
+            if (nowPlaying && nowPlayingTitle) {
+                nowPlayingTitle.textContent = track.title;
+                nowPlaying.style.display = 'block';
+            }
+        } catch (e) {
+            console.error('Failed to play track:', e);
+        }
+    }
+
+    function stopSoundtrackPlayer() {
+        if (soundtrackPlayer && soundtrackPlayer.source) {
+            try {
+                soundtrackPlayer.source.stop();
+            } catch (e) {}
+            soundtrackPlayer = null;
+        }
+        currentTrackTitle = null;
+        if (nowPlaying) nowPlaying.style.display = 'none';
+    }
+
+    if (soundtrackBtn && soundtrackOverlay) {
+        populateSoundtrackList();
+
+        soundtrackBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Stop menu music when opening soundtrack
+            if (menuAudio && menuAudio.source) {
+                try { menuAudio.source.stop(); } catch(e) {}
+                menuAudio = null;
+            }
+            soundtrackOverlay.style.display = 'flex';
+        });
+
+        soundtrackOverlay.addEventListener('click', (e) => {
+            if (e.target === soundtrackOverlay) {
+                soundtrackOverlay.style.display = 'none';
+            }
+        });
+
+        if (soundtrackPanel) {
+            soundtrackPanel.addEventListener('click', (e) => e.stopPropagation());
+        }
+
+        if (soundtrackClose) {
+            soundtrackClose.addEventListener('click', () => {
+                soundtrackOverlay.style.display = 'none';
+            });
+        }
+
+        if (soundtrackStop) {
+            soundtrackStop.addEventListener('click', () => {
+                stopSoundtrackPlayer();
             });
         }
     }
