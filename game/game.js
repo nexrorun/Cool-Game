@@ -12929,6 +12929,26 @@ export class Game {
             } catch (e) {}
         }
 
+        // Draw Diary Cabin (orange/brown dot) if supamonke code active and cabin exists
+        if (this.diaryCabin && !this.diaryCabin.collected && this.diaryCabin.pos) {
+            try {
+                const forceCabin = localStorage.getItem('uberthump_force_cabin') === 'true';
+                if (forceCabin) {
+                    ctx.fillStyle = '#ff8c00';
+                    const m = map(this.diaryCabin.pos.x, this.diaryCabin.pos.z);
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, 4, 0, Math.PI*2);
+                    ctx.fill();
+                    // pulsing highlight ring
+                    ctx.strokeStyle = 'rgba(255,140,0,0.7)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, 7, 0, Math.PI*2);
+                    ctx.stroke();
+                }
+            } catch (e) {}
+        }
+
         // Player Arrow
         ctx.save();
         ctx.translate(size/2, size/2);
@@ -13010,6 +13030,29 @@ export class Game {
                 ctx.fillStyle = '#222';
                 ctx.font = '12px monospace';
                 ctx.fillText('SECRET', m.x + 12, m.y + 4);
+            } catch (e) {}
+        }
+
+        // Draw Diary Cabin on Big Map (orange marker) if supamonke code active
+        if (this.diaryCabin && !this.diaryCabin.collected && this.diaryCabin.pos) {
+            try {
+                const forceCabin = localStorage.getItem('uberthump_force_cabin') === 'true';
+                if (forceCabin) {
+                    ctx.fillStyle = '#ff8c00';
+                    const m = map(this.diaryCabin.pos.x, this.diaryCabin.pos.z);
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, 7, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,140,0,0.8)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, 11 + Math.sin(Date.now()*0.008)*3, 0, Math.PI*2);
+                    ctx.stroke();
+                    // Label
+                    ctx.fillStyle = '#ff8c00';
+                    ctx.font = 'bold 12px monospace';
+                    ctx.fillText('CABIN', m.x + 14, m.y + 4);
+                }
             } catch (e) {}
         }
 
