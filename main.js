@@ -1986,6 +1986,89 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Diary button logic (menu only - unlocked via rare cabin find)
+    const diaryBtn = document.getElementById('diary-btn');
+    const diaryOverlay = document.getElementById('diary-overlay');
+    const diaryBook = document.getElementById('diary-book');
+    const diaryPrevBtn = document.getElementById('diary-prev-btn');
+    const diaryNextBtn = document.getElementById('diary-next-btn');
+    const diaryPageIndicator = document.getElementById('diary-page-indicator');
+    let currentDiaryPage = 1;
+    const totalDiaryPages = 3;
+
+    function updateDiaryPage() {
+        // Hide all pages
+        for (let i = 1; i <= totalDiaryPages; i++) {
+            const page = document.getElementById(`diary-page-${i}`);
+            if (page) page.style.display = 'none';
+        }
+        // Show current page
+        const currentPage = document.getElementById(`diary-page-${currentDiaryPage}`);
+        if (currentPage) currentPage.style.display = 'block';
+        // Update indicator
+        if (diaryPageIndicator) diaryPageIndicator.textContent = `Page ${currentDiaryPage} of ${totalDiaryPages}`;
+        // Update button states
+        if (diaryPrevBtn) {
+            diaryPrevBtn.disabled = currentDiaryPage === 1;
+            diaryPrevBtn.style.opacity = currentDiaryPage === 1 ? '0.5' : '1';
+        }
+        if (diaryNextBtn) {
+            diaryNextBtn.disabled = currentDiaryPage === totalDiaryPages;
+            diaryNextBtn.style.opacity = currentDiaryPage === totalDiaryPages ? '0.5' : '1';
+        }
+    }
+
+    if (diaryBtn && diaryOverlay) {
+        // Show button if player has found the diary
+        try {
+            if (localStorage.getItem('uberthump_diary_unlocked') === 'true') {
+                diaryBtn.style.display = 'inline-block';
+            }
+        } catch(e) {}
+
+        diaryBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentDiaryPage = 1;
+            updateDiaryPage();
+            diaryOverlay.style.display = 'flex';
+        });
+
+        // Clicking outside the book closes the diary
+        diaryOverlay.addEventListener('click', (e) => {
+            if (e.target === diaryOverlay) {
+                diaryOverlay.style.display = 'none';
+            }
+        });
+
+        // Prevent clicks inside the book from closing
+        if (diaryBook) {
+            diaryBook.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        // Page navigation
+        if (diaryPrevBtn) {
+            diaryPrevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentDiaryPage > 1) {
+                    currentDiaryPage--;
+                    updateDiaryPage();
+                }
+            });
+        }
+
+        if (diaryNextBtn) {
+            diaryNextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentDiaryPage < totalDiaryPages) {
+                    currentDiaryPage++;
+                    updateDiaryPage();
+                }
+            });
+        }
+    }
+
     // Start menu music helper – called on load and when entering menu.
     function startMenuMusic() {
         if (audioCtx.state === 'suspended') audioCtx.resume();

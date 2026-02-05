@@ -484,6 +484,9 @@ export class Game {
         // Secret lore note (3D pickup) for meta-story
         this.secretNote = null;
         this.runFoundSecretNote = false;
+        // Diary cabin (1/100 chance spawn) for extended lore
+        this.diaryCabin = null;
+        this.runFoundDiary = false;
         
         // Textures - use preloaded textures if available, otherwise create color fallbacks
         // Grass = green, Side = brown, Rock = grey
@@ -2346,7 +2349,7 @@ export class Game {
         // Removed hardcoded ramps and hills
 
         // Massive unclimbable mountains at the far edges of the map
-        const wallHeight = 24;
+        const wallHeight = 48;
         const wallThickness = 25;
         const half = size / 2;
 
@@ -2595,6 +2598,7 @@ export class Game {
         
         this.spawnMonkeCrate();
         this.spawnSecretLoreNote();
+        this.spawnDiaryCabin();
         this.createClouds();
 
         // Occasional tree leaf falls
@@ -5904,6 +5908,261 @@ export class Game {
         }
     }
 
+    // Spawn a mysterious cabin with 1/100 chance - contains diary pages revealing lore
+    spawnDiaryCabin() {
+        if (this.gameMode === 'AWAKENING') return;
+
+        try {
+            // 1/100 chance to spawn
+            if (Math.random() > 0.01) return;
+
+            // If player has already found the diary, don't spawn again
+            try {
+                if (localStorage.getItem('uberthump_diary_unlocked') === 'true') {
+                    return;
+                }
+            } catch (e) {}
+
+            if (this.diaryCabin && !this.diaryCabin.collected) return;
+
+            // Find a valid spawn location far from player
+            const maxAttempts = 15;
+            let placed = false;
+            let sx = 0, sz = 0, sy = 0;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const angle = this.randomValue(0, Math.PI * 2);
+                const dist = 120 + this.randomValue(-20, 20);
+                const x = Math.cos(angle) * dist;
+                const z = Math.sin(angle) * dist;
+
+                if (this.isOnPlatformOrRamp(x, z) || this.getTerrainHeight(x, z) >= 0) {
+                    sx = x; sz = z; sy = this.getTerrainHeight(x, z);
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed) {
+                const fallbackX = 80 + Math.floor(this.randomValue(-15, 15));
+                const fallbackZ = 80 + Math.floor(this.randomValue(-15, 15));
+                this.createTerrainPiece(fallbackX, fallbackZ, 18, 5);
+                sx = fallbackX;
+                sz = fallbackZ;
+                sy = this.getTerrainHeight(sx, sz);
+            }
+
+            // Create the cabin visual - detailed wooden cabin
+            const group = new THREE.Group();
+
+            // Materials
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x5C4033, roughness: 0.9 });
+            const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x3D2817, roughness: 0.85 });
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x2F1810, roughness: 0.95 });
+            const windowMat = new THREE.MeshStandardMaterial({
+                color: 0x88aacc,
+                transparent: true,
+                opacity: 0.6,
+                emissive: 0x334455,
+                emissiveIntensity: 0.3
+            });
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x4A3728, roughness: 0.9 });
+
+            // Main cabin body (walls)
+            const cabinWidth = 4;
+            const cabinDepth = 3.5;
+            const cabinHeight = 2.8;
+            const wallThick = 0.15;
+
+            // Front wall with door cutout
+            const frontWallLeft = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, cabinHeight, wallThick),
+                woodMat
+            );
+            frontWallLeft.position.set(-1.4, sy + cabinHeight / 2, cabinDepth / 2);
+            group.add(frontWallLeft);
+
+            const frontWallRight = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, cabinHeight, wallThick),
+                woodMat
+            );
+            frontWallRight.position.set(1.4, sy + cabinHeight / 2, cabinDepth / 2);
+            group.add(frontWallRight);
+
+            const frontWallTop = new THREE.Mesh(
+                new THREE.BoxGeometry(1.6, 0.8, wallThick),
+                woodMat
+            );
+            frontWallTop.position.set(0, sy + cabinHeight - 0.4, cabinDepth / 2);
+            group.add(frontWallTop);
+
+            // Door
+            const door = new THREE.Mesh(
+                new THREE.BoxGeometry(1.0, 2.0, 0.08),
+                doorMat
+            );
+            door.position.set(0, sy + 1.0, cabinDepth / 2 + 0.05);
+            group.add(door);
+
+            // Door handle
+            const handle = new THREE.Mesh(
+                new THREE.SphereGeometry(0.08, 8, 8),
+                new THREE.MeshStandardMaterial({ color: 0x8B7355, metalness: 0.6 })
+            );
+            handle.position.set(0.35, sy + 1.0, cabinDepth / 2 + 0.12);
+            group.add(handle);
+
+            // Back wall
+            const backWall = new THREE.Mesh(
+                new THREE.BoxGeometry(cabinWidth, cabinHeight, wallThick),
+                woodMat
+            );
+            backWall.position.set(0, sy + cabinHeight / 2, -cabinDepth / 2);
+            group.add(backWall);
+
+            // Left wall with window
+            const leftWallBottom = new THREE.Mesh(
+                new THREE.BoxGeometry(wallThick, 1.0, cabinDepth),
+                woodMat
+            );
+            leftWallBottom.position.set(-cabinWidth / 2, sy + 0.5, 0);
+            group.add(leftWallBottom);
+
+            const leftWallTop = new THREE.Mesh(
+                new THREE.BoxGeometry(wallThick, 0.8, cabinDepth),
+                woodMat
+            );
+            leftWallTop.position.set(-cabinWidth / 2, sy + cabinHeight - 0.4, 0);
+            group.add(leftWallTop);
+
+            const leftWallSide1 = new THREE.Mesh(
+                new THREE.BoxGeometry(wallThick, 1.0, 0.8),
+                woodMat
+            );
+            leftWallSide1.position.set(-cabinWidth / 2, sy + 1.5, 1.1);
+            group.add(leftWallSide1);
+
+            const leftWallSide2 = leftWallSide1.clone();
+            leftWallSide2.position.z = -1.1;
+            group.add(leftWallSide2);
+
+            // Left window
+            const leftWindow = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.1, 1.0, 1.4),
+                windowMat
+            );
+            leftWindow.position.set(-cabinWidth / 2 - 0.01, sy + 1.5, 0);
+            leftWindow.rotation.y = Math.PI / 2;
+            group.add(leftWindow);
+
+            // Right wall (solid)
+            const rightWall = new THREE.Mesh(
+                new THREE.BoxGeometry(wallThick, cabinHeight, cabinDepth),
+                woodMat
+            );
+            rightWall.position.set(cabinWidth / 2, sy + cabinHeight / 2, 0);
+            group.add(rightWall);
+
+            // Floor
+            const floor = new THREE.Mesh(
+                new THREE.BoxGeometry(cabinWidth, 0.15, cabinDepth),
+                darkWoodMat
+            );
+            floor.position.set(0, sy + 0.075, 0);
+            group.add(floor);
+
+            // Roof - A-frame style
+            const roofHeight = 1.8;
+            const roofOverhang = 0.5;
+
+            // Left roof slope
+            const roofLeft = new THREE.Mesh(
+                new THREE.BoxGeometry(cabinWidth + roofOverhang * 2, 0.12, Math.sqrt(roofHeight * roofHeight + (cabinDepth / 2 + 0.3) * (cabinDepth / 2 + 0.3))),
+                roofMat
+            );
+            roofLeft.position.set(0, sy + cabinHeight + roofHeight / 2, (cabinDepth / 4) + 0.2);
+            roofLeft.rotation.x = -Math.atan2(roofHeight, cabinDepth / 2 + 0.3);
+            group.add(roofLeft);
+
+            // Right roof slope
+            const roofRight = new THREE.Mesh(
+                new THREE.BoxGeometry(cabinWidth + roofOverhang * 2, 0.12, Math.sqrt(roofHeight * roofHeight + (cabinDepth / 2 + 0.3) * (cabinDepth / 2 + 0.3))),
+                roofMat
+            );
+            roofRight.position.set(0, sy + cabinHeight + roofHeight / 2, -(cabinDepth / 4) - 0.2);
+            roofRight.rotation.x = Math.atan2(roofHeight, cabinDepth / 2 + 0.3);
+            group.add(roofRight);
+
+            // Roof peak trim
+            const roofPeak = new THREE.Mesh(
+                new THREE.BoxGeometry(cabinWidth + roofOverhang * 2, 0.2, 0.2),
+                darkWoodMat
+            );
+            roofPeak.position.set(0, sy + cabinHeight + roofHeight, 0);
+            group.add(roofPeak);
+
+            // Front gable (triangular wall under roof)
+            const gableShape = new THREE.Shape();
+            gableShape.moveTo(-cabinWidth / 2, 0);
+            gableShape.lineTo(cabinWidth / 2, 0);
+            gableShape.lineTo(0, roofHeight);
+            gableShape.closePath();
+
+            const gableGeom = new THREE.ExtrudeGeometry(gableShape, { depth: 0.1, bevelEnabled: false });
+            const gableFront = new THREE.Mesh(gableGeom, woodMat);
+            gableFront.position.set(0, sy + cabinHeight, cabinDepth / 2 - 0.05);
+            group.add(gableFront);
+
+            const gableBack = new THREE.Mesh(gableGeom, woodMat);
+            gableBack.position.set(0, sy + cabinHeight, -cabinDepth / 2 - 0.05);
+            group.add(gableBack);
+
+            // Chimney
+            const chimney = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 1.5, 0.5),
+                new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 1.0 })
+            );
+            chimney.position.set(1.2, sy + cabinHeight + roofHeight - 0.2, -0.8);
+            group.add(chimney);
+
+            // Porch/step
+            const porch = new THREE.Mesh(
+                new THREE.BoxGeometry(2.0, 0.2, 0.8),
+                darkWoodMat
+            );
+            porch.position.set(0, sy + 0.1, cabinDepth / 2 + 0.5);
+            group.add(porch);
+
+            // Log details on walls (horizontal logs look)
+            for (let i = 0; i < 5; i++) {
+                const logTrim = new THREE.Mesh(
+                    new THREE.BoxGeometry(cabinWidth + 0.1, 0.08, 0.08),
+                    darkWoodMat
+                );
+                logTrim.position.set(0, sy + 0.5 + i * 0.5, cabinDepth / 2 + 0.08);
+                group.add(logTrim);
+            }
+
+            // Eerie glow from inside (subtle)
+            const interiorGlow = new THREE.PointLight(0xffaa44, 0.5, 8);
+            interiorGlow.position.set(0, sy + 1.5, 0);
+            group.add(interiorGlow);
+
+            group.position.set(sx, 0, sz);
+            group.rotation.y = this.randomValue(0, Math.PI * 2);
+            group.userData.isDiaryCabin = true;
+            this.scene.add(group);
+
+            this.diaryCabin = {
+                mesh: group,
+                pos: new THREE.Vector3(sx, sy, sz),
+                collected: false
+            };
+        } catch (e) {
+            // If anything goes wrong, silently skip spawning the cabin
+        }
+    }
+
     createEnemy(options = {}) {
         let x, z, spawnTerrainY;
         let valid = false;
@@ -7484,6 +7743,21 @@ export class Game {
             // If the paper button exists (e.g. in menu), make sure it's visible next time
             const secretBtnTop = document.getElementById('secret-note-btn');
             if (secretBtnTop) secretBtnTop.style.display = 'inline-block';
+        }
+
+        // Diary unlock handling (from rare cabin find)
+        if (this.runFoundDiary) {
+            try {
+                localStorage.setItem('uberthump_diary_unlocked', 'true');
+            } catch(e) {}
+            const badge = document.createElement('div');
+            badge.className = 'unlock-badge';
+            badge.innerText = 'FOUND: WEATHERED DIARY (NEW LORE UNLOCKED)';
+            unlockCont.appendChild(badge);
+
+            // If the diary button exists, make sure it's visible
+            const diaryBtnTop = document.getElementById('diary-btn');
+            if (diaryBtnTop) diaryBtnTop.style.display = 'inline-block';
         }
 
         // Display History
@@ -10609,28 +10883,152 @@ export class Game {
                 const sz = playerPos.z + Math.sin(angle) * dist;
                 const sy = this.getTerrainHeight(sx, sz) + 2.0;
                 
-                // Visuals
+                // Visuals - Improved spectral ghost model
                 const group = new THREE.Group();
-                
+
                 if (type === 'bob') {
-                    // Mini Bob visual (Cube head)
-                    const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+                    // Mini Bob Ghost - spectral version of Bob with cube head and ghostly trail
+                    const ghostMat = new THREE.MeshStandardMaterial({
+                        color: 0x444444,
+                        transparent: true,
+                        opacity: 0.85,
+                        emissive: 0x222222,
+                        emissiveIntensity: 0.3
+                    });
+
+                    // Cube head like Bob
+                    const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), ghostMat);
+                    head.position.y = 0.6;
                     group.add(head);
-                    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.1), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                    eye.position.set(0, 0.1, 0.5);
-                    group.add(eye);
-                } else {
-                    // Ghost visual (Sheet)
-                    const mat = new THREE.MeshStandardMaterial({ color: color, transparent: true, opacity: 0.8 });
-                    const core = new THREE.Mesh(new THREE.CapsuleGeometry(0.4 * scale, 1.0 * scale, 4, 8), mat);
-                    group.add(core);
-                    // Eyes
-                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1 * scale), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-                    eye.position.set(-0.15*scale, 0.2*scale, 0.35*scale);
-                    group.add(eye);
-                    const eye2 = eye.clone();
-                    eye2.position.x = 0.15*scale;
+
+                    // Glowing eyes
+                    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+                    const eye1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.1), eyeMat);
+                    eye1.position.set(-0.25, 0.7, 0.61);
+                    group.add(eye1);
+                    const eye2 = eye1.clone();
+                    eye2.position.x = 0.25;
                     group.add(eye2);
+
+                    // Ghostly hands floating beside
+                    const handMat = new THREE.MeshStandardMaterial({ color: 0x444444, transparent: true, opacity: 0.7 });
+                    const hand1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), handMat);
+                    hand1.position.set(-1.0, 0.3, 0.3);
+                    group.add(hand1);
+                    const hand2 = hand1.clone();
+                    hand2.position.x = 1.0;
+                    group.add(hand2);
+
+                    // Wispy trailing body segments
+                    for (let i = 0; i < 4; i++) {
+                        const segSize = 1.0 - i * 0.2;
+                        const segMat = new THREE.MeshStandardMaterial({
+                            color: 0x333333,
+                            transparent: true,
+                            opacity: 0.6 - i * 0.12
+                        });
+                        const seg = new THREE.Mesh(new THREE.BoxGeometry(segSize, 0.3, segSize * 0.8), segMat);
+                        seg.position.y = -0.3 - i * 0.35;
+                        group.add(seg);
+                    }
+                } else {
+                    // Spectral hooded ghost - proper ghost model
+                    const isDeadlyType = type === 'deadly';
+                    const baseColor = isDeadlyType ? 0x660000 : 0x226644;
+                    const glowColor = isDeadlyType ? 0xff0000 : 0x00ff88;
+
+                    const ghostMat = new THREE.MeshStandardMaterial({
+                        color: baseColor,
+                        transparent: true,
+                        opacity: 0.75,
+                        emissive: baseColor,
+                        emissiveIntensity: 0.4
+                    });
+
+                    // Hood/head - rounded top with pointed bottom
+                    const hood = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.5 * scale, 0.8 * scale, 8),
+                        ghostMat
+                    );
+                    hood.position.y = 0.8 * scale;
+                    hood.rotation.x = Math.PI; // Flip cone for hood shape
+                    group.add(hood);
+
+                    // Face area - slightly inset dark void
+                    const faceMat = new THREE.MeshStandardMaterial({
+                        color: 0x000000,
+                        transparent: true,
+                        opacity: 0.9
+                    });
+                    const face = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.4 * scale, 0.35 * scale),
+                        faceMat
+                    );
+                    face.position.set(0, 0.65 * scale, 0.25 * scale);
+                    group.add(face);
+
+                    // Glowing eyes
+                    const eyeMat = new THREE.MeshBasicMaterial({ color: glowColor });
+                    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.08 * scale), eyeMat);
+                    eye1.position.set(-0.12 * scale, 0.68 * scale, 0.3 * scale);
+                    group.add(eye1);
+                    const eye2 = eye1.clone();
+                    eye2.position.x = 0.12 * scale;
+                    group.add(eye2);
+
+                    // Main body - flowing robe shape
+                    const bodyMat = new THREE.MeshStandardMaterial({
+                        color: baseColor,
+                        transparent: true,
+                        opacity: 0.65,
+                        emissive: baseColor,
+                        emissiveIntensity: 0.2
+                    });
+                    const body = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.35 * scale, 0.5 * scale, 0.8 * scale, 8),
+                        bodyMat
+                    );
+                    body.position.y = 0.1 * scale;
+                    group.add(body);
+
+                    // Wispy trailing segments - creates flowing bottom effect
+                    for (let i = 0; i < 5; i++) {
+                        const wispWidth = (0.5 - i * 0.08) * scale;
+                        const wispMat = new THREE.MeshStandardMaterial({
+                            color: baseColor,
+                            transparent: true,
+                            opacity: 0.5 - i * 0.08,
+                            emissive: baseColor,
+                            emissiveIntensity: 0.1
+                        });
+                        const wisp = new THREE.Mesh(
+                            new THREE.CylinderGeometry(wispWidth, wispWidth * 0.7, 0.25 * scale, 6),
+                            wispMat
+                        );
+                        wisp.position.y = -0.35 * scale - i * 0.22 * scale;
+                        // Slight random offset for organic look
+                        wisp.position.x = (Math.random() - 0.5) * 0.1 * scale;
+                        wisp.position.z = (Math.random() - 0.5) * 0.1 * scale;
+                        group.add(wisp);
+                    }
+
+                    // Ghostly arms/sleeves
+                    const armMat = new THREE.MeshStandardMaterial({
+                        color: baseColor,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    const arm1 = new THREE.Mesh(
+                        new THREE.CapsuleGeometry(0.1 * scale, 0.4 * scale, 4, 6),
+                        armMat
+                    );
+                    arm1.position.set(-0.45 * scale, 0.2 * scale, 0.1 * scale);
+                    arm1.rotation.z = 0.5;
+                    group.add(arm1);
+                    const arm2 = arm1.clone();
+                    arm2.position.x = 0.45 * scale;
+                    arm2.rotation.z = -0.5;
+                    group.add(arm2);
                 }
                 
                 group.position.set(sx, sy, sz);
@@ -11533,31 +11931,103 @@ export class Game {
 
         const isDeadly = type === 'ghost_deadly';
 
-        // Better ghost visuals - long tattered shape (visuals kept slightly higher for effect)
-        const color = isDeadly ? 0xff0000 : 0x00ffcc;
-        
-        const core = new THREE.Mesh(
-            new THREE.CapsuleGeometry(isDeadly ? 0.8 : 0.6, 2.0, 4, 8),
-            new THREE.MeshStandardMaterial({
-                color: color,
-                emissive: color,
-                emissiveIntensity: 2.0,
-                transparent: true,
-                opacity: 0.8
-            })
-        );
-        group.add(core);
+        // Improved spectral hooded ghost model - matches Boberto's ghosts (they are the same in lore)
+        const scale = isDeadly ? 1.3 : 1.0;
+        const baseColor = isDeadly ? 0x660000 : 0x226644;
+        const glowColor = isDeadly ? 0xff0000 : 0x00ff88;
 
-        const eyeColor = isDeadly ? 0xff0000 : 0x00ffff;
-        const eyeL = new THREE.Mesh(
-            new THREE.SphereGeometry(0.12),
-            new THREE.MeshBasicMaterial({ color: eyeColor })
+        const ghostMat = new THREE.MeshStandardMaterial({
+            color: baseColor,
+            transparent: true,
+            opacity: 0.75,
+            emissive: baseColor,
+            emissiveIntensity: 0.4
+        });
+
+        // Hood/head - rounded top with pointed bottom
+        const hood = new THREE.Mesh(
+            new THREE.ConeGeometry(0.5 * scale, 0.8 * scale, 8),
+            ghostMat
         );
-        eyeL.position.set(-0.25, 0.2, 0.7);
-        group.add(eyeL);
-        const eyeR = eyeL.clone();
-        eyeR.position.x = 0.25;
-        group.add(eyeR);
+        hood.position.y = 0.8 * scale;
+        hood.rotation.x = Math.PI; // Flip cone for hood shape
+        group.add(hood);
+
+        // Face area - slightly inset dark void
+        const faceMat = new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.9
+        });
+        const face = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.4 * scale, 0.35 * scale),
+            faceMat
+        );
+        face.position.set(0, 0.65 * scale, 0.25 * scale);
+        group.add(face);
+
+        // Glowing eyes
+        const eyeMat = new THREE.MeshBasicMaterial({ color: glowColor });
+        const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.08 * scale), eyeMat);
+        eye1.position.set(-0.12 * scale, 0.68 * scale, 0.3 * scale);
+        group.add(eye1);
+        const eye2 = eye1.clone();
+        eye2.position.x = 0.12 * scale;
+        group.add(eye2);
+
+        // Main body - flowing robe shape
+        const bodyMat = new THREE.MeshStandardMaterial({
+            color: baseColor,
+            transparent: true,
+            opacity: 0.65,
+            emissive: baseColor,
+            emissiveIntensity: 0.2
+        });
+        const bodyMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.35 * scale, 0.5 * scale, 0.8 * scale, 8),
+            bodyMat
+        );
+        bodyMesh.position.y = 0.1 * scale;
+        group.add(bodyMesh);
+
+        // Wispy trailing segments - creates flowing bottom effect
+        for (let i = 0; i < 5; i++) {
+            const wispWidth = (0.5 - i * 0.08) * scale;
+            const wispMat = new THREE.MeshStandardMaterial({
+                color: baseColor,
+                transparent: true,
+                opacity: 0.5 - i * 0.08,
+                emissive: baseColor,
+                emissiveIntensity: 0.1
+            });
+            const wisp = new THREE.Mesh(
+                new THREE.CylinderGeometry(wispWidth, wispWidth * 0.7, 0.25 * scale, 6),
+                wispMat
+            );
+            wisp.position.y = -0.35 * scale - i * 0.22 * scale;
+            // Slight random offset for organic look
+            wisp.position.x = (Math.random() - 0.5) * 0.1 * scale;
+            wisp.position.z = (Math.random() - 0.5) * 0.1 * scale;
+            group.add(wisp);
+        }
+
+        // Ghostly arms/sleeves
+        const armMat = new THREE.MeshStandardMaterial({
+            color: baseColor,
+            transparent: true,
+            opacity: 0.6
+        });
+        const arm1 = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.1 * scale, 0.4 * scale, 4, 6),
+            armMat
+        );
+        arm1.position.set(-0.45 * scale, 0.2 * scale, 0.1 * scale);
+        arm1.rotation.z = 0.5;
+        group.add(arm1);
+        const arm2 = arm1.clone();
+        arm2.position.x = 0.45 * scale;
+        arm2.rotation.z = -0.5;
+        group.add(arm2);
 
         // Place visual group slightly above the physics body so the visible ghost looks to float,
         // but keep the physics/body near the player's level to make collision checks fair.
@@ -11987,6 +12457,41 @@ export class Game {
                     try { localStorage.setItem('uberthump_secret_note_unlocked', 'true'); } catch (e) {}
                     this.showToast('You found a strange note...');
                     this.playSound('unlock', 0.9, 0.5);
+                }
+            }
+
+            // Check diary cabin proximity - cabin disappears when approached
+            if (this.diaryCabin && !this.diaryCabin.collected) {
+                const dCabin = this.playerMesh.position.distanceTo(this.diaryCabin.pos);
+                if (dCabin < 5.0) {
+                    this.diaryCabin.collected = true;
+                    this.runFoundDiary = true;
+                    // Fade out effect - cabin disappears mysteriously
+                    try {
+                        const cabin = this.diaryCabin.mesh;
+                        // Quick fade animation
+                        let fadeTime = 0;
+                        const fadeInterval = setInterval(() => {
+                            fadeTime += 0.05;
+                            cabin.traverse((child) => {
+                                if (child.material) {
+                                    child.material.transparent = true;
+                                    child.material.opacity = Math.max(0, 1 - fadeTime);
+                                }
+                            });
+                            if (fadeTime >= 1) {
+                                clearInterval(fadeInterval);
+                                this.scene.remove(cabin);
+                            }
+                        }, 50);
+                    } catch(e) {
+                        try { this.scene.remove(this.diaryCabin.mesh); } catch(e2){}
+                    }
+                    // Persist that the diary has been found
+                    try { localStorage.setItem('uberthump_diary_unlocked', 'true'); } catch (e) {}
+                    this.showToast('You found a weathered diary... (Check Game Over Screen)');
+                    this.playSound('unlock', 0.9, 0.5);
+                    this.particleSystem.emit(this.diaryCabin.pos, 0xffaa44, 30);
                 }
             }
 
