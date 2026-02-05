@@ -6167,6 +6167,133 @@ export class Game {
         }
     }
 
+    // Force spawn cabin mid-game (for dev testing via supamonke code)
+    forceSpawnDiaryCabin() {
+        if (this.gameMode === 'AWAKENING') return;
+        if (this.diaryCabin) return; // Already exists
+
+        try {
+            // Find a valid spawn location
+            const maxAttempts = 15;
+            let placed = false;
+            let sx = 0, sz = 0, sy = 0;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 80 + Math.random() * 40; // Closer for easier testing
+                const x = this.playerBody.position.x + Math.cos(angle) * dist;
+                const z = this.playerBody.position.z + Math.sin(angle) * dist;
+
+                if (this.getTerrainHeight(x, z) >= 0) {
+                    sx = x; sz = z; sy = this.getTerrainHeight(x, z);
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed) {
+                // Fallback: create platform near player
+                const angle = Math.random() * Math.PI * 2;
+                sx = this.playerBody.position.x + Math.cos(angle) * 60;
+                sz = this.playerBody.position.z + Math.sin(angle) * 60;
+                this.createTerrainPiece(sx, sz, 18, 5);
+                sy = this.getTerrainHeight(sx, sz);
+            }
+
+            // Create the cabin (same visual as spawnDiaryCabin)
+            const group = new THREE.Group();
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x5C4033, roughness: 0.9 });
+            const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x3D2817, roughness: 0.85 });
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x2F1810, roughness: 0.95 });
+            const windowMat = new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.6, emissive: 0x334455, emissiveIntensity: 0.3 });
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x4A3728, roughness: 0.9 });
+
+            const cabinWidth = 4, cabinDepth = 3.5, cabinHeight = 2.8, wallThick = 0.15;
+
+            // Front wall
+            const frontWallLeft = new THREE.Mesh(new THREE.BoxGeometry(1.2, cabinHeight, wallThick), woodMat);
+            frontWallLeft.position.set(-1.4, sy + cabinHeight / 2, cabinDepth / 2);
+            group.add(frontWallLeft);
+            const frontWallRight = new THREE.Mesh(new THREE.BoxGeometry(1.2, cabinHeight, wallThick), woodMat);
+            frontWallRight.position.set(1.4, sy + cabinHeight / 2, cabinDepth / 2);
+            group.add(frontWallRight);
+            const frontWallTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, wallThick), woodMat);
+            frontWallTop.position.set(0, sy + cabinHeight - 0.4, cabinDepth / 2);
+            group.add(frontWallTop);
+
+            // Door
+            const door = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.0, 0.08), doorMat);
+            door.position.set(0, sy + 1.0, cabinDepth / 2 + 0.05);
+            group.add(door);
+            const handle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshStandardMaterial({ color: 0x8B7355, metalness: 0.6 }));
+            handle.position.set(0.35, sy + 1.0, cabinDepth / 2 + 0.12);
+            group.add(handle);
+
+            // Back wall
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(cabinWidth, cabinHeight, wallThick), woodMat);
+            backWall.position.set(0, sy + cabinHeight / 2, -cabinDepth / 2);
+            group.add(backWall);
+
+            // Side walls
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, cabinHeight, cabinDepth), woodMat);
+            rightWall.position.set(cabinWidth / 2, sy + cabinHeight / 2, 0);
+            group.add(rightWall);
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, cabinHeight, cabinDepth), woodMat);
+            leftWall.position.set(-cabinWidth / 2, sy + cabinHeight / 2, 0);
+            group.add(leftWall);
+
+            // Floor
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(cabinWidth, 0.15, cabinDepth), darkWoodMat);
+            floor.position.set(0, sy + 0.075, 0);
+            group.add(floor);
+
+            // Roof
+            const roofHeight = 1.8, roofOverhang = 0.5;
+            const roofLen = Math.sqrt(roofHeight * roofHeight + (cabinDepth / 2 + 0.3) * (cabinDepth / 2 + 0.3));
+            const roofLeft = new THREE.Mesh(new THREE.BoxGeometry(cabinWidth + roofOverhang * 2, 0.12, roofLen), roofMat);
+            roofLeft.position.set(0, sy + cabinHeight + roofHeight / 2, (cabinDepth / 4) + 0.2);
+            roofLeft.rotation.x = -Math.atan2(roofHeight, cabinDepth / 2 + 0.3);
+            group.add(roofLeft);
+            const roofRight = new THREE.Mesh(new THREE.BoxGeometry(cabinWidth + roofOverhang * 2, 0.12, roofLen), roofMat);
+            roofRight.position.set(0, sy + cabinHeight + roofHeight / 2, -(cabinDepth / 4) - 0.2);
+            roofRight.rotation.x = Math.atan2(roofHeight, cabinDepth / 2 + 0.3);
+            group.add(roofRight);
+            const roofPeak = new THREE.Mesh(new THREE.BoxGeometry(cabinWidth + roofOverhang * 2, 0.2, 0.2), darkWoodMat);
+            roofPeak.position.set(0, sy + cabinHeight + roofHeight, 0);
+            group.add(roofPeak);
+
+            // Chimney
+            const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.5), new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 1.0 }));
+            chimney.position.set(1.2, sy + cabinHeight + roofHeight - 0.2, -0.8);
+            group.add(chimney);
+
+            // Porch
+            const porch = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.2, 0.8), darkWoodMat);
+            porch.position.set(0, sy + 0.1, cabinDepth / 2 + 0.5);
+            group.add(porch);
+
+            // Interior glow
+            const interiorGlow = new THREE.PointLight(0xffaa44, 0.5, 8);
+            interiorGlow.position.set(0, sy + 1.5, 0);
+            group.add(interiorGlow);
+
+            group.position.set(sx, 0, sz);
+            group.rotation.y = Math.random() * Math.PI * 2;
+            group.userData.isDiaryCabin = true;
+            this.scene.add(group);
+
+            this.diaryCabin = {
+                mesh: group,
+                pos: new THREE.Vector3(sx, sy, sz),
+                collected: false
+            };
+
+            this.showToast('Cabin spawned! Check your map.');
+        } catch (e) {
+            console.error('Failed to force spawn cabin:', e);
+        }
+    }
+
     createEnemy(options = {}) {
         let x, z, spawnTerrainY;
         let valid = false;
