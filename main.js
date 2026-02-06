@@ -1576,35 +1576,35 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // ---- Bestiary data and overlay helpers ----
     const BESTIARY = [
-        // Ground / melee enemies
-        { key: 'skeleton', title: 'Skeleton', type: 'Enemy', hp: 5, damage: 6, notes: 'Light, mobile; often in groups.' },
-        { key: 'ogre', title: 'Ogre', type: 'Enemy', hp: 22, damage: 18, notes: 'Tanky melee bruiser; high single-hit damage.' },
-        { key: 'piglin', title: 'Piglin', type: 'Enemy', hp: 10, damage: 9, notes: 'Medium durability with tusks; mid-threat.' },
-        { key: 'spider', title: 'Spider', type: 'Enemy', hp: 6, damage: 10, notes: 'Charges and explodes after a short wind-up; avoid close range.' },
-        { key: 'zombie', title: 'Zombie', type: 'Enemy', hp: 9, damage: 8, notes: 'Slow but persistent; can block narrow paths.' },
+        // Ground / melee enemies (HP scales with level in-game)
+        { key: 'skeleton', title: 'Skeleton', type: 'Enemy', hp: 50, damage: 6, notes: 'Light, mobile; often in groups.' },
+        { key: 'ogre', title: 'Ogre', type: 'Enemy', hp: 220, damage: 18, notes: 'Tanky melee bruiser; high single-hit damage.' },
+        { key: 'piglin', title: 'Piglin', type: 'Enemy', hp: 100, damage: 9, notes: 'Medium durability with tusks; mid-threat.' },
+        { key: 'spider', title: 'Spider', type: 'Enemy', hp: 60, damage: 10, notes: 'Charges and explodes after a short wind-up; avoid close range.' },
+        { key: 'zombie', title: 'Zombie', type: 'Enemy', hp: 90, damage: 8, notes: 'Slow but persistent; can block narrow paths.' },
 
         // Explicit miniboss entries
-        { key: 'JOHN_PORK', title: 'John Pork the Terrible', type: 'Miniboss', hp: 700, damage: 28, notes: 'Armored brawler with heavy swings and a short charge; stagger window after his swing.' },
-        { key: 'KAREN', title: 'Queen Karen', type: 'Miniboss', hp: 550, damage: 22, notes: 'Ranged/minion support; summons or zones the area with cone attacks.' },
-        { key: 'BRUH_NUBIS', title: 'Bruh-nubis', type: 'Miniboss', hp: 625, damage: 26, notes: 'Teleporting strikes and collar-based AOE; punish flanking attempts.' },
+        { key: 'JOHN_PORK', title: 'John Pork the Terrible', type: 'Miniboss', hp: 7000, damage: 28, notes: 'Armored brawler with heavy swings and a short charge; stagger window after his swing.' },
+        { key: 'KAREN', title: 'Queen Karen', type: 'Miniboss', hp: 5500, damage: 22, notes: 'Ranged/minion support; summons or zones the area with cone attacks.' },
+        { key: 'BRUH_NUBIS', title: 'Bruh-nubis', type: 'Miniboss', hp: 6250, damage: 26, notes: 'Teleporting strikes and collar-based AOE; punish flanking attempts.' },
 
-        { key: 'BOSS_MAIN', title: 'The Gatekeeper', type: 'Boss', hp: 1500, damage: 40, notes: 'Massive health, teleports and fires pitchfork volleys; opens the portal when defeated.' },
+        { key: 'BOSS_MAIN', title: 'The Gatekeeper', type: 'Boss', hp: 15000, damage: 40, notes: 'Massive health, teleports and fires pitchfork volleys; opens the portal when defeated.' },
 
         // TNS (Totally Not Scripted) Story Mode Bosses
-        { key: 'BABYBARK', title: 'Babybark', type: 'TNS Boss (Tier 1)', hp: 5000, damage: 15, notes: 'The introductory bark boss; basic attack patterns with moderate damage. First challenge in Story Mode.' },
-        { key: 'SMOLBARK', title: 'Smolbark', type: 'TNS Boss (Tier 2)', hp: 15000, damage: 25, notes: 'Enhanced bark variant with additional abilities and faster attacks. Requires stronger builds to defeat.' },
-        { key: 'CHADBARK', title: 'Chadbark', type: 'TNS Boss (Tier 3)', hp: 45000, damage: 40, notes: 'A formidable bark warrior with devastating attacks and high durability. Test of mid-game mastery.' },
-        { key: 'BARKVADER', title: 'Barkvader', type: 'TNS Boss (Tier 4)', hp: 100000, damage: 60, notes: 'The ultimate bark lord. Complex attack patterns, massive health pool, and relentless aggression. Final boss of Story Mode.' },
+        { key: 'BABYBARK', title: 'Babybark', type: 'TNS Boss (Tier 1)', hp: 50000, damage: 15, notes: 'The introductory bark boss; basic attack patterns with moderate damage. First challenge in Story Mode.' },
+        { key: 'SMOLBARK', title: 'Smolbark', type: 'TNS Boss (Tier 2)', hp: 150000, damage: 25, notes: 'Enhanced bark variant with additional abilities and faster attacks. Requires stronger builds to defeat.' },
+        { key: 'CHADBARK', title: 'Chadbark', type: 'TNS Boss (Tier 3)', hp: 450000, damage: 40, notes: 'A formidable bark warrior with devastating attacks and high durability. Test of mid-game mastery.' },
+        { key: 'BARKVADER', title: 'Barkvader', type: 'TNS Boss (Tier 4)', hp: 1000000, damage: 60, notes: 'The ultimate bark lord. Complex attack patterns, massive health pool, and relentless aggression. Final boss of Story Mode.' },
 
         // Awakening-specific boss entry (Awakened Bob)
-        { key: 'BOB', title: 'Bob (Awakened)', type: 'Awakened Boss', hp: 2000, damage: 35, notes: 'A massive grave guardian risen from the crypts; standard Bob spawns with ~2000 HP, heavy melee attacks and powerful shockwave tantrums. DEADLY_BOB spawns with ~5000 HP and stronger tantrums.' },
+        { key: 'BOB', title: 'Bob (Awakened)', type: 'Awakened Boss', hp: 20000, damage: 35, notes: 'A massive grave guardian risen from the crypts; standard Bob spawns with ~20,000 HP, heavy melee attacks and powerful shockwave tantrums. DEADLY_BOB spawns with ~50,000 HP and stronger tantrums.' },
 
         // Overtime variant for Arcade (stacks) – enormous HP scaling and brutal hits
-        { key: 'OVERTIME_BOB', title: 'Bob (Overtime Variant)', type: 'Overtime Boss', hp: 1000000, damage: 1000, notes: 'Arcade Overtime variant: spawns after 2.5 minutes and then repeatedly stacks; first Overtime Bob has 1,000,000 HP and each subsequent spawn adds another 1,000,000 HP to the newly spawned Bob; they deal 1000 damage per hit.' },
+        { key: 'OVERTIME_BOB', title: 'Bob (Overtime Variant)', type: 'Overtime Boss', hp: 10000000, damage: 1000, notes: 'Arcade Overtime variant: spawns after 2.5 minutes and then repeatedly stacks; first Overtime Bob has 10,000,000 HP and each subsequent spawn adds another 10,000,000 HP to the newly spawned Bob; they deal 1000 damage per hit.' },
 
         // Ghost-class enemies (separated so players can see flying/overtime threats)
-        { key: 'ghost_default', title: 'Ghost', type: 'Ghost', hp: 5, damage: 4, notes: 'Overtime floater; ignores terrain and lava, harasses from above; low HP but travels in waves — focus-fire to avoid being overwhelmed.' },
-        { key: 'ghost_deadly', title: 'Deadly Ghost', type: 'Ghost (Deadly)', hp: 11, damage: 9, notes: 'Stronger ghost variant with higher HP and damage; more persistent and tougher to kite; prioritize with area-of-effect or fast single-target bursts.' }
+        { key: 'ghost_default', title: 'Ghost', type: 'Ghost', hp: 50, damage: 4, notes: 'Overtime floater; ignores terrain and lava, harasses from above; low HP but travels in waves — focus-fire to avoid being overwhelmed.' },
+        { key: 'ghost_deadly', title: 'Deadly Ghost', type: 'Ghost (Deadly)', hp: 110, damage: 9, notes: 'Stronger ghost variant with higher HP and damage; more persistent and tougher to kite; prioritize with area-of-effect or fast single-target bursts.' }
     ];
 
     function ensureBestiaryOverlay() {
@@ -2147,6 +2147,12 @@ window.addEventListener('DOMContentLoaded', () => {
         // Stop any current playback
         stopSoundtrackPlayer();
 
+        // Also stop menu music if playing
+        if (menuAudio && menuAudio.source) {
+            try { menuAudio.source.stop(); } catch(e) {}
+            menuAudio = null;
+        }
+
         try {
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
@@ -2210,7 +2216,8 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         if (soundtrackClose) {
-            soundtrackClose.addEventListener('click', () => {
+            soundtrackClose.addEventListener('click', (e) => {
+                e.stopPropagation();
                 soundtrackOverlay.style.display = 'none';
             });
         }
