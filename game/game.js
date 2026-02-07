@@ -421,8 +421,6 @@ export class Game {
         // Input
         this.keys = { w: false, a: false, s: false, d: false, space: false, q: false, shift: false };
         this.canJump = true;
-        this.isSliding = false;
-        this.slideSpeed = 0;
         this.moveVector = new THREE.Vector2(0, 0);
         this.mouseMovement = { x: 0, y: 0 };
         this.cameraRotation = 0;
@@ -573,6 +571,14 @@ export class Game {
         // Timers
         this.autoAttackTimer = 0;
         this.spawnTimer = 0;
+
+        // Background systems
+        this.leashRadius = 80;
+        this.leashCheckTimer = 0;
+        this.ambientParticles = [];
+        this.ambientParticleTimer = 0;
+        this.combatIntensity = 0;
+        this.nearbyEnemyCount = 0;
         
         // Weapon helpers
         this.turrets = [];
@@ -2797,6 +2803,17 @@ export class Game {
         this.orbitingBlades = [];
         this.auraVisuals = {};
         this.leafSpawners = [];
+        // Clean up ambient particles
+        if (this.ambientParticles) {
+            for (const p of this.ambientParticles) {
+                this.scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+            }
+        }
+        this.ambientParticles = [];
+        this.combatIntensity = 0;
+        this.nearbyEnemyCount = 0;
         this.monkeCrate = null;
         this.bossPortal = null;
         this.portalParticles = null;
@@ -4652,7 +4669,7 @@ export class Game {
             { el: '#stats-left', title: 'STATS', text: 'Keep an eye on your Health and XP.' },
             { el: '#loadout-box', title: 'GEAR', text: 'Your weapons and buffs appear here.' },
             { el: '#minimap-container', title: 'MAP', text: 'Shows enemies (red) and loot (gold).' },
-            { el: null, title: 'SLIDING', text: 'Hold SHIFT to slide! Gain speed on ramps. Each character has a unique slide.' }
+            { el: null, title: 'MOVEMENT', text: 'WASD to move, SPACE to jump. Stay mobile to avoid enemies!' }
         ];
         
         let stepIdx = 0;
@@ -8670,82 +8687,6 @@ export class Game {
             // Nothing here on purpose – movement is handled via the speed boost.
         }
 
-        // Sliding mechanic: Hold Shift to slide
-        const rampInfo = this.getCurrentRamp ? this.getCurrentRamp(this.playerBody.position.x, this.playerBody.position.z) : null;
-        const onGround = Math.abs(this.playerBody.position.y - this.getTerrainHeight(this.playerBody.position.x, this.playerBody.position.z) - this.playerRadius) < 0.5;
-
-        if (this.keys.shift && onGround) {
-            if (!this.isSliding) {
-                this.isSliding = true;
-                this.slideSpeed = Math.sqrt(this.playerBody.velocity.x ** 2 + this.playerBody.velocity.z ** 2);
-            }
-
-            if (rampInfo) {
-                // On a ramp - gain speed going downhill, lose speed going uphill
-                const currentVelX = this.playerBody.velocity.x;
-                const currentVelZ = this.playerBody.velocity.z;
-                const velMag = Math.sqrt(currentVelX ** 2 + currentVelZ ** 2);
-
-                // Check if we're going downhill (velocity aligned with downhill direction)
-                const dotProduct = (currentVelX * rampInfo.downhillX + currentVelZ * rampInfo.downhillZ) / (velMag + 0.001);
-
-                // Apply gravity-based acceleration on ramps
-                const slideAccel = 15 * rampInfo.slopeAngle; // Steeper = faster
-                this.slideSpeed = Math.min(25, this.slideSpeed + slideAccel * dt);
-
-                // Blend velocity toward downhill direction
-                const blendRate = 0.15;
-                this.playerBody.velocity.x = this.playerBody.velocity.x * (1 - blendRate) + rampInfo.downhillX * this.slideSpeed * blendRate;
-                this.playerBody.velocity.z = this.playerBody.velocity.z * (1 - blendRate) + rampInfo.downhillZ * this.slideSpeed * blendRate;
-            } else {
-                // On flat ground - gradually slow down with friction
-                this.slideSpeed = Math.max(0, this.slideSpeed - 5 * dt);
-                this.playerBody.velocity.x *= 0.98;
-                this.playerBody.velocity.z *= 0.98;
-            }
-
-            // Character-specific sliding animations
-            const slideDir = Math.atan2(this.playerBody.velocity.x, this.playerBody.velocity.z);
-
-            // Build target quaternion by combining Y rotation (direction) with tilt
-            let tiltX = 0, tiltZ = 0, yawOffset = 0;
-
-            if (this.characterKey === 'GIGACHAD' || this.characterKey === 'SIR_CHAD') {
-                // GigaChad gets on his knees - tilt forward
-                tiltX = 0.4;
-            } else if (this.characterKey === 'CALCIUM') {
-                // Calcium ducks low on his skateboard - sideways stance with wobble
-                tiltX = 0.3;
-                tiltZ = Math.sin(this.time * 3) * 0.1;
-                yawOffset = Math.PI / 2;
-            } else if (this.characterKey === 'MMOOVT') {
-                // Mr. Mc. oofy Otterson uses sword like skateboard - sideways with lean
-                tiltX = 0.2;
-                tiltZ = -0.3;
-                yawOffset = Math.PI / 2;
-            } else if (this.characterKey === 'MONKE') {
-                // Monke slides on belly like a penguin
-                tiltX = 0.8;
-            } else if (this.characterKey === 'FOX') {
-                // Fox slides low
-                tiltX = 0.5;
-            } else {
-                // Default slide pose
-                tiltX = 0.3;
-            }
-
-            // Create combined quaternion: first rotate to face direction, then apply tilt
-            const euler = new THREE.Euler(tiltX, slideDir + yawOffset, tiltZ, 'YXZ');
-            const targetQ = new THREE.Quaternion().setFromEuler(euler);
-            this.playerMesh.quaternion.slerp(targetQ, 0.15);
-        } else {
-            // Stop sliding when shift is released
-            if (this.isSliding) {
-                this.isSliding = false;
-                this.slideSpeed = 0;
-                // Quaternion will naturally reset via normal movement slerp
-            }
-        }
 
         // Apply horizontal velocity to position
         this.playerBody.position.x += this.playerBody.velocity.x * dt;
@@ -9377,6 +9318,28 @@ export class Game {
             const dist = diff.length();
             diff.normalize();
 
+            // --- Feature 1: Enemy Leashing ---
+            // Teleport far-away non-boss enemies closer behind the player
+            if (!enemy.isBoss && dist > this.leashRadius) {
+                const behindAngle = Math.atan2(
+                    -(this.playerBody.velocity.x || 0),
+                    -(this.playerBody.velocity.z || 0)
+                ) + (Math.random() - 0.5) * 1.5;
+                const leashDist = 40 + Math.random() * 15;
+                const newX = this.playerBody.position.x + Math.sin(behindAngle) * leashDist;
+                const newZ = this.playerBody.position.z + Math.cos(behindAngle) * leashDist;
+                if (!this.isLava(newX, newZ)) {
+                    const newY = this.getTerrainHeight(newX, newZ) + enemy.size;
+                    enemy.body.position.set(newX, newY, newZ);
+                    enemy.mesh.position.copy(enemy.body.position);
+                    continue;
+                }
+            }
+
+            // --- Feature 2: Dynamic Enemy LOD ---
+            // Skip animations and dust particles for distant enemies
+            const isDistant = dist > 40;
+
             // Add a little wander so enemies don't perfectly beeline
             enemy.walkTime = (enemy.walkTime || 0) + dt * 1.2;
             if (enemy.wanderSeed === undefined) enemy.wanderSeed = Math.random() * 10;
@@ -9451,8 +9414,8 @@ export class Game {
                     enemy.body.position.y = minY;
                 }
 
-                // Dirt puff under walking enemies
-                if (this.particleSystem && baseSpeed > 0.1) {
+                // Dirt puff under walking enemies (LOD: skip for distant)
+                if (!isDistant && this.particleSystem && baseSpeed > 0.1) {
                     const dustPos = enemy.mesh.position.clone();
                     dustPos.y = terrainHeightEnemy + 0.05;
                     this.particleSystem.emit(dustPos, 0x7c5a3a, 1);
@@ -9490,8 +9453,8 @@ export class Game {
             const angle = Math.atan2(diff.x, diff.z);
             enemy.mesh.rotation.y = angle;
 
-            // Simple walk animation for enemies that have limbs
-            if (enemy.anim && (enemy.anim.arms || enemy.anim.legs)) {
+            // Simple walk animation for enemies that have limbs (LOD: skip for distant)
+            if (!isDistant && enemy.anim && (enemy.anim.arms || enemy.anim.legs)) {
                 // Slower enemy animation
                 const animSpeed = 2.5;
                 enemy.walkTime = (enemy.walkTime || 0) + dt * animSpeed;
@@ -12112,6 +12075,102 @@ export class Game {
         }
     }
 
+    // --- Feature 3: Ambient Arena Particles ---
+    // Floating embers/ash that drift through the arena for atmosphere
+    updateAmbientParticles(dt) {
+        this.ambientParticleTimer += dt;
+
+        // Spawn new ambient particles every ~0.3 seconds (max 30 alive at once)
+        if (this.ambientParticleTimer >= 0.3 && this.ambientParticles.length < 30) {
+            this.ambientParticleTimer = 0;
+            const px = this.playerBody.position.x;
+            const pz = this.playerBody.position.z;
+            const py = this.playerBody.position.y;
+
+            // Spawn in a ring around the player at random heights
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 8 + Math.random() * 20;
+            const x = px + Math.sin(angle) * dist;
+            const z = pz + Math.cos(angle) * dist;
+            const y = py + 1 + Math.random() * 8;
+
+            // Pick a warm ember color
+            const colors = [0xff6633, 0xff9944, 0xffcc44, 0xaaaaaa, 0x888888];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            const geo = new THREE.SphereGeometry(0.06 + Math.random() * 0.08, 4, 4);
+            const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            this.scene.add(mesh);
+
+            this.ambientParticles.push({
+                mesh,
+                life: 4 + Math.random() * 3,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: 0.3 + Math.random() * 0.4,
+                vz: (Math.random() - 0.5) * 0.5,
+                wobblePhase: Math.random() * Math.PI * 2
+            });
+        }
+
+        // Update existing particles
+        for (let i = this.ambientParticles.length - 1; i >= 0; i--) {
+            const p = this.ambientParticles[i];
+            p.life -= dt;
+            if (p.life <= 0) {
+                this.scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+                this.ambientParticles.splice(i, 1);
+                continue;
+            }
+            // Gentle drift with slight wobble
+            p.wobblePhase += dt * 2;
+            p.mesh.position.x += (p.vx + Math.sin(p.wobblePhase) * 0.15) * dt;
+            p.mesh.position.y += p.vy * dt;
+            p.mesh.position.z += (p.vz + Math.cos(p.wobblePhase) * 0.15) * dt;
+            // Fade out in the last second
+            if (p.life < 1) {
+                p.mesh.material.opacity = p.life * 0.7;
+            }
+        }
+    }
+
+    // --- Feature 5: Dynamic Combat Intensity ---
+    // Adjust lighting and ambience based on nearby enemy density
+    updateCombatIntensity(dt) {
+        // Target intensity based on nearby enemy count (computed in spawn pacing)
+        const target = Math.min(1, this.nearbyEnemyCount / 15);
+        // Smooth lerp toward target
+        this.combatIntensity += (target - this.combatIntensity) * dt * 2;
+
+        // Subtle ambient light boost during intense combat
+        if (this.scene.children) {
+            for (let i = 0; i < this.scene.children.length; i++) {
+                const child = this.scene.children[i];
+                if (child.isAmbientLight) {
+                    // Base intensity 0.6, boost up to 0.9 during intense combat
+                    child.intensity = 0.6 + this.combatIntensity * 0.3;
+                    // Shift color slightly warm during combat
+                    const r = 1.0, g = 1.0 - this.combatIntensity * 0.08, b = 1.0 - this.combatIntensity * 0.15;
+                    child.color.setRGB(r, g, b);
+                    break;
+                }
+            }
+        }
+
+        // Subtle vignette / red tint on the renderer when combat is intense
+        if (this.renderer && this.combatIntensity > 0.4) {
+            const strength = (this.combatIntensity - 0.4) * 0.08;
+            this.renderer.setClearColor(
+                new THREE.Color(0.05 + strength, 0.02, 0.02)
+            );
+        } else if (this.renderer) {
+            this.renderer.setClearColor(new THREE.Color(0.05, 0.02, 0.02));
+        }
+    }
+
     updateTimer() {
         let display = "";
         const limit = this.timeLimit || 600;
@@ -12584,6 +12643,8 @@ export class Game {
             this.updateDamageNumbers(dt);
             this.updateAudioDynamics();
             this.updateCamera();
+            this.updateAmbientParticles(dt);
+            this.updateCombatIntensity(dt);
 
             // Tree animation (sway)
             const time = performance.now() * 0.001;
@@ -12813,6 +12874,23 @@ export class Game {
                     // Previously divided by (1 + this.gameTime * 0.01) — now much gentler:
                     const timeAccel = 1 + this.gameTime * 0.004; // slower ramp over time
                     baseSpawnDelay = Math.max(0.6, baseSpawnDelay / timeAccel);
+                }
+
+                // --- Feature 4: Adaptive Spawn Pacing ---
+                // Slow spawns when many enemies are already close, speed up when few are nearby
+                const nearbyThreshold = 15;
+                let nearCount = 0;
+                const px = this.playerBody.position.x, pz = this.playerBody.position.z;
+                for (let i = 0; i < this.enemies.length; i++) {
+                    const e = this.enemies[i];
+                    const dx = e.body.position.x - px, dz = e.body.position.z - pz;
+                    if (dx * dx + dz * dz < nearbyThreshold * nearbyThreshold) nearCount++;
+                }
+                this.nearbyEnemyCount = nearCount;
+                if (nearCount > 12) {
+                    baseSpawnDelay *= 1.6; // lots of nearby enemies, slow down
+                } else if (nearCount < 4) {
+                    baseSpawnDelay *= 0.7; // too few nearby, speed up
                 }
 
                 // Apply any global spawnRateMultiplier if present (kept/reset on tier change)
