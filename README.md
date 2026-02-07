@@ -329,6 +329,8 @@ Totally Not Scripted mode tracks tier progress separately, saving which tiers ha
 - **W/A/S/D** or **Arrow Keys**: Move character
 - **Mouse Movement**: Aim direction
 - **Left Click**: Attack (for applicable weapons)
+- **Shift** (hold): Slide - gains speed going down ramps, unique animation per character
+- **Space**: Jump (double-tap for double jump when available)
 - **Q**: Open big map overlay
 - **Escape**: Pause game
 

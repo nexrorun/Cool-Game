@@ -3612,9 +3612,13 @@ window.addEventListener('DOMContentLoaded', () => {
         const setBtn = document.getElementById('settings-btn');
         const loreBtnTop = document.getElementById('lore-btn');
         const secretBtnTop = document.getElementById('secret-note-btn');
+        const soundtrackBtn = document.getElementById('soundtrack-btn');
+        const diaryBtn = document.getElementById('diary-btn');
         if (setBtn) setBtn.style.display = 'none';
         if (loreBtnTop) loreBtnTop.style.display = 'none';
         if (secretBtnTop) secretBtnTop.style.display = 'none';
+        if (soundtrackBtn) soundtrackBtn.style.display = 'none';
+        if (diaryBtn) diaryBtn.style.display = 'none';
 
         // Override mode from settings if provided
         let mode = selectedMode || 'ARCADE';
