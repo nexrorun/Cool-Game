@@ -419,8 +419,10 @@ export class Game {
         this.world.gravity.set(0, -40, 0);
 
         // Input
-        this.keys = { w: false, a: false, s: false, d: false, space: false, q: false };
+        this.keys = { w: false, a: false, s: false, d: false, space: false, q: false, shift: false };
         this.canJump = true;
+        this.isSliding = false;
+        this.slideSpeed = 0;
         this.moveVector = new THREE.Vector2(0, 0);
         this.mouseMovement = { x: 0, y: 0 };
         this.cameraRotation = 0;
@@ -1978,6 +1980,8 @@ export class Game {
             e.preventDefault();
         } else if (key === 'control') {
             this.keys.ctrl = pressed;
+        } else if (key === 'shift') {
+            this.keys.shift = pressed;
         } else if (this.keys.hasOwnProperty(key)) {
             this.keys[key] = pressed;
             e.preventDefault();
@@ -2586,6 +2590,43 @@ export class Game {
             }
 
             return false;
+        };
+
+        // Helper to get ramp info if player is standing on one
+        this.getCurrentRamp = (x, z) => {
+            for (let r of this.ramps) {
+                const dx = x - r.x;
+                const dz = z - r.z;
+
+                const cos = Math.cos(-r.yaw);
+                const sin = Math.sin(-r.yaw);
+                const localX = dx * cos + dz * sin;
+                const localZ = -dx * sin + dz * cos;
+
+                const halfW = r.width / 2 + 0.6;
+                const halfL = r.length / 2 + 0.6;
+
+                if (Math.abs(localX) <= halfW && localZ >= -halfL && localZ <= halfL) {
+                    // Calculate which direction is "downhill" in world space
+                    const slopeDir = r.toHeight > r.fromHeight ? -1 : 1; // -1 means going toward fromHeight is downhill
+                    const downhillLocalZ = slopeDir; // Direction in local space
+
+                    // Convert local downhill direction to world space
+                    const worldCos = Math.cos(r.yaw);
+                    const worldSin = Math.sin(r.yaw);
+                    const downhillX = downhillLocalZ * worldSin;
+                    const downhillZ = downhillLocalZ * worldCos;
+
+                    return {
+                        ramp: r,
+                        downhillX,
+                        downhillZ,
+                        slope: r.slope,
+                        slopeAngle: Math.abs(r.toHeight - r.fromHeight) / r.length
+                    };
+                }
+            }
+            return null;
         };
 
         this.scatterProps();
@@ -4610,7 +4651,8 @@ export class Game {
             { el: '#objectives-box', title: 'OBJECTIVES', text: 'Follow these to progress.' },
             { el: '#stats-left', title: 'STATS', text: 'Keep an eye on your Health and XP.' },
             { el: '#loadout-box', title: 'GEAR', text: 'Your weapons and buffs appear here.' },
-            { el: '#minimap-container', title: 'MAP', text: 'Shows enemies (red) and loot (gold).' }
+            { el: '#minimap-container', title: 'MAP', text: 'Shows enemies (red) and loot (gold).' },
+            { el: null, title: 'SLIDING', text: 'Hold SHIFT to slide! Gain speed on ramps. Each character has a unique slide.' }
         ];
         
         let stepIdx = 0;
@@ -4637,45 +4679,54 @@ export class Game {
             
             this.isPaused = true;
             overlay.innerHTML = '';
-            
+
             const step = steps[stepIdx];
-            const target = document.querySelector(step.el);
-            if (!target) {
+            const target = step.el ? document.querySelector(step.el) : null;
+
+            // Skip if step has a selector but element not found
+            if (step.el && !target) {
                 stepIdx++;
                 showStep();
                 return;
             }
-            
-            const rect = target.getBoundingClientRect();
-            
-            // Highlight box
-            const hl = document.createElement('div');
-            hl.className = 'tutorial-highlight';
-            hl.style.left = (rect.left - 5) + 'px';
-            hl.style.top = (rect.top - 5) + 'px';
-            hl.style.width = (rect.width + 10) + 'px';
-            hl.style.height = (rect.height + 10) + 'px';
-            overlay.appendChild(hl);
-            
+
             // Text box
             const box = document.createElement('div');
             box.className = 'tutorial-box';
-            
-            // Position near the highlight intelligently
-            let top = rect.bottom + 15;
-            if (top + 100 > window.innerHeight) {
-                top = rect.top - 120;
+
+            if (target) {
+                const rect = target.getBoundingClientRect();
+
+                // Highlight box
+                const hl = document.createElement('div');
+                hl.className = 'tutorial-highlight';
+                hl.style.left = (rect.left - 5) + 'px';
+                hl.style.top = (rect.top - 5) + 'px';
+                hl.style.width = (rect.width + 10) + 'px';
+                hl.style.height = (rect.height + 10) + 'px';
+                overlay.appendChild(hl);
+
+                // Position near the highlight intelligently
+                let top = rect.bottom + 15;
+                if (top + 100 > window.innerHeight) {
+                    top = rect.top - 120;
+                }
+
+                box.style.left = Math.max(10, Math.min(window.innerWidth - 260, rect.left)) + 'px';
+                box.style.top = top + 'px';
+            } else {
+                // Center the box for text-only steps (like sliding tip)
+                box.style.left = '50%';
+                box.style.top = '50%';
+                box.style.transform = 'translate(-50%, -50%)';
             }
-            
-            box.style.left = Math.max(10, Math.min(window.innerWidth - 260, rect.left)) + 'px';
-            box.style.top = top + 'px';
-            
+
             box.innerHTML = `
                 <h4>${step.title}</h4>
                 <p>${step.text}</p>
                 <button id="tut-next">NEXT ></button>
             `;
-            
+
             overlay.appendChild(box);
             
             const btn = document.getElementById('tut-next');
@@ -8617,6 +8668,87 @@ export class Game {
         // so no extra per-frame velocity scaling here (prevents runaway launching).
         if (this.characterKey === 'CALCIUM') {
             // Nothing here on purpose – movement is handled via the speed boost.
+        }
+
+        // Sliding mechanic: Hold Shift to slide
+        const rampInfo = this.getCurrentRamp ? this.getCurrentRamp(this.playerBody.position.x, this.playerBody.position.z) : null;
+        const onGround = Math.abs(this.playerBody.position.y - this.getTerrainHeight(this.playerBody.position.x, this.playerBody.position.z) - this.playerRadius) < 0.5;
+
+        if (this.keys.shift && onGround) {
+            if (!this.isSliding) {
+                this.isSliding = true;
+                this.slideSpeed = Math.sqrt(this.playerBody.velocity.x ** 2 + this.playerBody.velocity.z ** 2);
+            }
+
+            if (rampInfo) {
+                // On a ramp - gain speed going downhill, lose speed going uphill
+                const currentVelX = this.playerBody.velocity.x;
+                const currentVelZ = this.playerBody.velocity.z;
+                const velMag = Math.sqrt(currentVelX ** 2 + currentVelZ ** 2);
+
+                // Check if we're going downhill (velocity aligned with downhill direction)
+                const dotProduct = (currentVelX * rampInfo.downhillX + currentVelZ * rampInfo.downhillZ) / (velMag + 0.001);
+
+                // Apply gravity-based acceleration on ramps
+                const slideAccel = 15 * rampInfo.slopeAngle; // Steeper = faster
+                this.slideSpeed = Math.min(25, this.slideSpeed + slideAccel * dt);
+
+                // Blend velocity toward downhill direction
+                const blendRate = 0.15;
+                this.playerBody.velocity.x = this.playerBody.velocity.x * (1 - blendRate) + rampInfo.downhillX * this.slideSpeed * blendRate;
+                this.playerBody.velocity.z = this.playerBody.velocity.z * (1 - blendRate) + rampInfo.downhillZ * this.slideSpeed * blendRate;
+            } else {
+                // On flat ground - gradually slow down with friction
+                this.slideSpeed = Math.max(0, this.slideSpeed - 5 * dt);
+                this.playerBody.velocity.x *= 0.98;
+                this.playerBody.velocity.z *= 0.98;
+            }
+
+            // Character-specific sliding animations
+            const slideDir = Math.atan2(this.playerBody.velocity.x, this.playerBody.velocity.z);
+
+            if (this.characterKey === 'GIGACHAD' || this.characterKey === 'SIR_CHAD') {
+                // GigaChad gets on his knees - tilt forward and lower stance
+                this.playerMesh.rotation.x = -0.4; // Lean forward
+                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
+                this.playerMesh.quaternion.slerp(q, 0.15);
+            } else if (this.characterKey === 'CALCIUM') {
+                // Calcium ducks low on his skateboard
+                this.playerMesh.rotation.x = -0.3;
+                this.playerMesh.rotation.z = Math.sin(this.time * 3) * 0.1; // Slight wobble
+                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir + Math.PI / 2);
+                this.playerMesh.quaternion.slerp(q, 0.15);
+            } else if (this.characterKey === 'MMOOVT') {
+                // Mr. Mc. oofy Otterson uses his sword like a skateboard - sideways stance
+                this.playerMesh.rotation.x = -0.2;
+                this.playerMesh.rotation.z = 0.3; // Lean to one side
+                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir + Math.PI / 2);
+                this.playerMesh.quaternion.slerp(q, 0.15);
+            } else if (this.characterKey === 'MONKE') {
+                // Monke slides on belly like a penguin
+                this.playerMesh.rotation.x = -0.8;
+                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
+                this.playerMesh.quaternion.slerp(q, 0.15);
+            } else if (this.characterKey === 'FOX') {
+                // Fox slides low with tail up
+                this.playerMesh.rotation.x = -0.5;
+                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
+                this.playerMesh.quaternion.slerp(q, 0.15);
+            } else {
+                // Default slide pose
+                this.playerMesh.rotation.x = -0.3;
+                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
+                this.playerMesh.quaternion.slerp(q, 0.15);
+            }
+        } else {
+            // Stop sliding when shift is released
+            if (this.isSliding) {
+                this.isSliding = false;
+                this.slideSpeed = 0;
+                // Reset mesh rotation
+                this.playerMesh.rotation.x = 0;
+                this.playerMesh.rotation.z = 0;
+            }
         }
 
         // Apply horizontal velocity to position
