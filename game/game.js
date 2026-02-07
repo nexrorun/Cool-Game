@@ -8707,47 +8707,43 @@ export class Game {
             // Character-specific sliding animations
             const slideDir = Math.atan2(this.playerBody.velocity.x, this.playerBody.velocity.z);
 
+            // Build target quaternion by combining Y rotation (direction) with tilt
+            let tiltX = 0, tiltZ = 0, yawOffset = 0;
+
             if (this.characterKey === 'GIGACHAD' || this.characterKey === 'SIR_CHAD') {
-                // GigaChad gets on his knees - tilt forward and lower stance
-                this.playerMesh.rotation.x = -0.4; // Lean forward
-                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
-                this.playerMesh.quaternion.slerp(q, 0.15);
+                // GigaChad gets on his knees - tilt forward
+                tiltX = 0.4;
             } else if (this.characterKey === 'CALCIUM') {
-                // Calcium ducks low on his skateboard
-                this.playerMesh.rotation.x = -0.3;
-                this.playerMesh.rotation.z = Math.sin(this.time * 3) * 0.1; // Slight wobble
-                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir + Math.PI / 2);
-                this.playerMesh.quaternion.slerp(q, 0.15);
+                // Calcium ducks low on his skateboard - sideways stance with wobble
+                tiltX = 0.3;
+                tiltZ = Math.sin(this.time * 3) * 0.1;
+                yawOffset = Math.PI / 2;
             } else if (this.characterKey === 'MMOOVT') {
-                // Mr. Mc. oofy Otterson uses his sword like a skateboard - sideways stance
-                this.playerMesh.rotation.x = -0.2;
-                this.playerMesh.rotation.z = 0.3; // Lean to one side
-                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir + Math.PI / 2);
-                this.playerMesh.quaternion.slerp(q, 0.15);
+                // Mr. Mc. oofy Otterson uses sword like skateboard - sideways with lean
+                tiltX = 0.2;
+                tiltZ = -0.3;
+                yawOffset = Math.PI / 2;
             } else if (this.characterKey === 'MONKE') {
                 // Monke slides on belly like a penguin
-                this.playerMesh.rotation.x = -0.8;
-                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
-                this.playerMesh.quaternion.slerp(q, 0.15);
+                tiltX = 0.8;
             } else if (this.characterKey === 'FOX') {
-                // Fox slides low with tail up
-                this.playerMesh.rotation.x = -0.5;
-                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
-                this.playerMesh.quaternion.slerp(q, 0.15);
+                // Fox slides low
+                tiltX = 0.5;
             } else {
                 // Default slide pose
-                this.playerMesh.rotation.x = -0.3;
-                const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), slideDir);
-                this.playerMesh.quaternion.slerp(q, 0.15);
+                tiltX = 0.3;
             }
+
+            // Create combined quaternion: first rotate to face direction, then apply tilt
+            const euler = new THREE.Euler(tiltX, slideDir + yawOffset, tiltZ, 'YXZ');
+            const targetQ = new THREE.Quaternion().setFromEuler(euler);
+            this.playerMesh.quaternion.slerp(targetQ, 0.15);
         } else {
             // Stop sliding when shift is released
             if (this.isSliding) {
                 this.isSliding = false;
                 this.slideSpeed = 0;
-                // Reset mesh rotation
-                this.playerMesh.rotation.x = 0;
-                this.playerMesh.rotation.z = 0;
+                // Quaternion will naturally reset via normal movement slerp
             }
         }
 
