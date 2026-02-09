@@ -1,5 +1,6 @@
 import { Game, preloadGameTextures } from './game/game.js';
 import * as THREE from 'three';
+import { getSettings, updateSettings } from './game/StateManager.js';
 
 // Global preloaded textures cache
 let preloadedTextures = null;
@@ -58,7 +59,8 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Views
     const pixelToggleBottom = document.getElementById('pixel-toggle-bottom-input');
-    let pixelateEnabled = pixelToggleBottom ? pixelToggleBottom.checked : true;
+    const _initSettings = getSettings();
+    let pixelateEnabled = _initSettings.pixelMode !== undefined ? _initSettings.pixelMode : (pixelToggleBottom ? pixelToggleBottom.checked : true);
     const viewIntro = document.getElementById('menu-view-intro');
     const viewSelect = document.getElementById('menu-view-select');
     const viewLobby = document.getElementById('menu-view-lobby');
@@ -2235,6 +2237,7 @@ window.addEventListener('DOMContentLoaded', () => {
         // Already playing?
         if (menuAudio && menuAudio.source) return;
 
+        const menuVol = (getSettings().menuMusicVolume || 0.8) * 0.5;
         loadSound("./MY FRIENDS WONT STOP THUMPING AND NOW I AM THUMPING TOO (send help).mp3").then(buf => {
             if (!buf) return;
             // If something started in the meantime, don't double-play
@@ -2244,7 +2247,7 @@ window.addEventListener('DOMContentLoaded', () => {
             src.buffer = buf;
             src.loop = true;
             const gain = audioCtx.createGain();
-            gain.gain.value = 0.4;
+            gain.gain.value = menuVol;
             src.connect(gain);
             gain.connect(audioCtx.destination);
             src.start(0);
@@ -2274,7 +2277,8 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!url) {
             // Restore menu volume properly via the GainNode's AudioParam
             if (menuAudio && menuAudio.gain && menuAudio.gain.gain) {
-                menuAudio.gain.gain.setTargetAtTime(0.4, audioCtx.currentTime, 0.5);
+                const restoreVol = (getSettings().menuMusicVolume || 0.8) * 0.5;
+                menuAudio.gain.gain.setTargetAtTime(restoreVol, audioCtx.currentTime, 0.5);
             }
             return;
         }
@@ -2297,7 +2301,8 @@ window.addEventListener('DOMContentLoaded', () => {
             
             setTimeout(() => {
                  if (menuAudio && menuAudio.gain && menuAudio.gain.gain) {
-                     menuAudio.gain.gain.setTargetAtTime(0.4, audioCtx.currentTime, 0.5);
+                     const restoreVol = (getSettings().menuMusicVolume || 0.8) * 0.5;
+                     menuAudio.gain.gain.setTargetAtTime(restoreVol, audioCtx.currentTime, 0.5);
                  }
             }, 12000);
         });
@@ -2350,6 +2355,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Settings / Dev Panel Logic
     const settingsBtn = document.getElementById('settings-btn');
+    const menuSettingsBtn = document.getElementById('menu-settings-btn');
     // Ensure button is visible in menu
     if (settingsBtn) settingsBtn.style.display = 'block';
 
@@ -2360,27 +2366,91 @@ window.addEventListener('DOMContentLoaded', () => {
     const mapCodeInput = document.getElementById('map-code-input');
     const mapCodeBtn = document.getElementById('map-code-btn');
 
-    // Sync initial state
-    if (pixelSettingCheck) pixelSettingCheck.checked = pixelateEnabled;
+    // Volume sliders
+    const menuMusicSlider = document.getElementById('setting-menu-music-vol');
+    const gameplayMusicSlider = document.getElementById('setting-gameplay-music-vol');
+    const sfxSlider = document.getElementById('setting-sfx-vol');
+    const menuMusicVal = document.getElementById('setting-menu-music-val');
+    const gameplayMusicVal = document.getElementById('setting-gameplay-music-val');
+    const sfxVal = document.getElementById('setting-sfx-val');
 
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (settingsPanel) settingsPanel.style.display = 'block';
-            // If in game, pause (and release pointer lock implicitly via UI interaction)
-            if (game && game.isPlaying) {
-                game.isPaused = true;
-                if (document.exitPointerLock) document.exitPointerLock();
-            }
+    // Graphics quality buttons
+    const gfxHigh = document.getElementById('gfx-high');
+    const gfxMedium = document.getElementById('gfx-medium');
+    const gfxLow = document.getElementById('gfx-low');
+    const gfxDesc = document.getElementById('gfx-desc');
+
+    // Load saved settings and apply to UI
+    const savedSettings = getSettings();
+    let currentGraphicsQuality = savedSettings.graphicsQuality || 'high';
+
+    if (pixelSettingCheck) pixelSettingCheck.checked = savedSettings.pixelMode !== undefined ? savedSettings.pixelMode : pixelateEnabled;
+    if (menuMusicSlider) { menuMusicSlider.value = Math.round((savedSettings.menuMusicVolume || 0.8) * 100); menuMusicVal.textContent = menuMusicSlider.value + '%'; }
+    if (gameplayMusicSlider) { gameplayMusicSlider.value = Math.round((savedSettings.gameplayMusicVolume || 0.7) * 100); gameplayMusicVal.textContent = gameplayMusicSlider.value + '%'; }
+    if (sfxSlider) { sfxSlider.value = Math.round((savedSettings.sfxVolume || 0.8) * 100); sfxVal.textContent = sfxSlider.value + '%'; }
+
+    // Helper: apply graphics quality button styles
+    function updateGfxButtons(quality) {
+        const active = { border: '2px solid #00ff88', background: 'rgba(0,255,136,0.15)', color: '#00ff88' };
+        const inactive = { border: '2px solid #555', background: 'transparent', color: '#aaa' };
+        const descriptions = {
+            high: 'Full visual quality. All particles, lighting, and effects enabled.',
+            medium: 'Reduced particles, ambient effects disabled. Good balance of visuals and performance.',
+            low: 'Minimal effects. Particles, ambient embers, dust, tree sway, and extra lights disabled for max performance.'
+        };
+        [gfxHigh, gfxMedium, gfxLow].forEach(btn => {
+            if (!btn) return;
+            Object.assign(btn.style, inactive);
         });
+        const target = quality === 'high' ? gfxHigh : quality === 'medium' ? gfxMedium : gfxLow;
+        if (target) Object.assign(target.style, active);
+        if (gfxDesc) gfxDesc.textContent = descriptions[quality] || '';
     }
+    updateGfxButtons(currentGraphicsQuality);
+
+    // Helper: apply menu music volume live
+    function applyMenuMusicVolume(vol) {
+        if (menuAudio && menuAudio.gain && menuAudio.gain.gain) {
+            menuAudio.gain.gain.setTargetAtTime(vol * 0.5, audioCtx.currentTime, 0.05);
+        }
+    }
+    // Apply saved menu music volume on load
+    applyMenuMusicVolume(savedSettings.menuMusicVolume || 0.8);
+
+    // Helper: apply settings to game instance
+    function applySettingsToGame() {
+        if (!game) return;
+        const s = getSettings();
+        game.sfxVolumeMult = s.sfxVolume;
+        game.bgmVolumeMult = s.gameplayMusicVolume;
+        game.graphicsQuality = s.graphicsQuality || 'high';
+        // Apply BGM volume live
+        if (game.currentBgmGain && game.currentBgmGain.gain) {
+            game.currentBgmGain.gain.setTargetAtTime(s.gameplayMusicVolume * 0.5, game.audioCtx.currentTime, 0.05);
+        }
+        // Apply graphics quality
+        game.applyGraphicsQuality();
+    }
+
+    // Open settings from in-game SYSTEM button
+    function openSettingsPanel(e) {
+        if (e) e.stopPropagation();
+        if (settingsPanel) settingsPanel.style.display = 'block';
+        if (game && game.isPlaying) {
+            game.isPaused = true;
+            if (document.exitPointerLock) document.exitPointerLock();
+        }
+    }
+
+    if (settingsBtn) settingsBtn.addEventListener('click', openSettingsPanel);
+    // Open settings from main menu SETTINGS button
+    if (menuSettingsBtn) menuSettingsBtn.addEventListener('click', openSettingsPanel);
 
     if (settingsClose) {
         settingsClose.addEventListener('click', () => {
             if (settingsPanel) settingsPanel.style.display = 'none';
             if (game && game.isPlaying) {
                 game.isPaused = false;
-                // Try to re-lock
                 if (game.renderer && game.renderer.domElement) {
                     game.renderer.domElement.requestPointerLock();
                 }
@@ -2388,18 +2458,56 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Volume slider handlers
+    if (menuMusicSlider) {
+        menuMusicSlider.addEventListener('input', () => {
+            const vol = parseInt(menuMusicSlider.value) / 100;
+            menuMusicVal.textContent = menuMusicSlider.value + '%';
+            applyMenuMusicVolume(vol);
+            updateSettings({ menuMusicVolume: vol });
+        });
+    }
+    if (gameplayMusicSlider) {
+        gameplayMusicSlider.addEventListener('input', () => {
+            const vol = parseInt(gameplayMusicSlider.value) / 100;
+            gameplayMusicVal.textContent = gameplayMusicSlider.value + '%';
+            updateSettings({ gameplayMusicVolume: vol });
+            applySettingsToGame();
+        });
+    }
+    if (sfxSlider) {
+        sfxSlider.addEventListener('input', () => {
+            const vol = parseInt(sfxSlider.value) / 100;
+            sfxVal.textContent = sfxSlider.value + '%';
+            updateSettings({ sfxVolume: vol });
+            applySettingsToGame();
+        });
+    }
+
+    // Graphics quality button handlers
+    [['high', gfxHigh], ['medium', gfxMedium], ['low', gfxLow]].forEach(([quality, btn]) => {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            currentGraphicsQuality = quality;
+            updateGfxButtons(quality);
+            updateSettings({ graphicsQuality: quality });
+            applySettingsToGame();
+        });
+    });
+
     // Pixel Toggle
     if (pixelSettingCheck) {
         pixelSettingCheck.addEventListener('change', () => {
             pixelateEnabled = pixelSettingCheck.checked;
-            
+            updateSettings({ pixelMode: pixelateEnabled });
+
             // Apply to Menu
             if (menuScene) {
                 if (modeSelect && modeSelect.value === 'AWAKENING') menuScene.setPixelMode(true);
                 else if (modeSelect && modeSelect.value === 'MULTI') menuScene.setPixelMode(true);
                 else menuScene.setPixelMode(pixelateEnabled);
             }
-            
+
             // Apply to Game
             if (game) {
                 if (game.gameMode === 'AWAKENING' || game.gameMode === 'MULTI') game.setPixelMode(true);
@@ -3568,7 +3676,8 @@ window.addEventListener('DOMContentLoaded', () => {
             }
             // Restore menu music volume if in menu
             if (menuAudio && menuAudio.gain && menuAudio.gain.gain) {
-                menuAudio.gain.gain.setTargetAtTime(0.4, audioCtx.currentTime, 0.5);
+                const restoreVol = (getSettings().menuMusicVolume || 0.8) * 0.5;
+                menuAudio.gain.gain.setTargetAtTime(restoreVol, audioCtx.currentTime, 0.5);
             }
             
             unlockScreen.classList.remove('active');
@@ -3663,6 +3772,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
             game = new Game(selectedCharacter, runPixelate, useCharacterTheme, mode, room, lobbySettings, seed, preloadedTextures);
             game.init();
+
+            // Apply saved settings to new game instance
+            applySettingsToGame();
 
             if (typeof game.startIntro === 'function') {
                 game.startIntro();

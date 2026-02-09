@@ -387,32 +387,32 @@ export class Game {
         this.fsScene.add(this.fsQuad);
 
         // Better lighting setup
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
-        this.scene.add(ambientLight);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
+        this.scene.add(this.ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfff4e6, 1.8);
-        dirLight.position.set(15, 25, 10);
+        this.dirLight = new THREE.DirectionalLight(0xfff4e6, 1.8);
+        this.dirLight.position.set(15, 25, 10);
         // Turn off directional light shadows to remove the big dark green circle artifact
-        dirLight.castShadow = false;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 60;
-        dirLight.shadow.camera.left = -40;
-        dirLight.shadow.camera.right = 40;
-        dirLight.shadow.camera.top = 40;
-        dirLight.shadow.camera.bottom = -40;
-        dirLight.shadow.bias = -0.0001;
-        this.scene.add(dirLight);
-        
+        this.dirLight.castShadow = false;
+        this.dirLight.shadow.mapSize.width = 2048;
+        this.dirLight.shadow.mapSize.height = 2048;
+        this.dirLight.shadow.camera.near = 0.5;
+        this.dirLight.shadow.camera.far = 60;
+        this.dirLight.shadow.camera.left = -40;
+        this.dirLight.shadow.camera.right = 40;
+        this.dirLight.shadow.camera.top = 40;
+        this.dirLight.shadow.camera.bottom = -40;
+        this.dirLight.shadow.bias = -0.0001;
+        this.scene.add(this.dirLight);
+
         // Add fill light for better character visibility
-        const fillLight = new THREE.DirectionalLight(0xbde0fe, 0.9);
-        fillLight.position.set(-10, 10, -10);
-        this.scene.add(fillLight);
-        
+        this.fillLight = new THREE.DirectionalLight(0xbde0fe, 0.9);
+        this.fillLight.position.set(-10, 10, -10);
+        this.scene.add(this.fillLight);
+
         // Hemisphere light for natural outdoor look
-        const hemiLight = new THREE.HemisphereLight(0xbfe9ff, 0x4caf50, 1.0);
-        this.scene.add(hemiLight);
+        this.hemiLight = new THREE.HemisphereLight(0xbfe9ff, 0x4caf50, 1.0);
+        this.scene.add(this.hemiLight);
 
         // Physics
         this.world = new CANNON.World();
@@ -579,7 +579,12 @@ export class Game {
         this.ambientParticleTimer = 0;
         this.combatIntensity = 0;
         this.nearbyEnemyCount = 0;
-        
+
+        // Settings (set by main.js from saved settings)
+        this.sfxVolumeMult = 0.8;
+        this.bgmVolumeMult = 0.7;
+        this.graphicsQuality = 'high';
+
         // Weapon helpers
         this.turrets = [];
 
@@ -1661,7 +1666,7 @@ export class Game {
             source.playbackRate.value = pitch;
 
             const gain = this.audioCtx.createGain();
-            gain.gain.value = volume;
+            gain.gain.value = volume * (this.sfxVolumeMult || 1);
 
             source.connect(gain);
             gain.connect(this.audioCtx.destination);
@@ -1678,8 +1683,8 @@ export class Game {
         osc.connect(gain);
         gain.connect(this.audioCtx.destination);
         
-        // Quiet SFX by default
-        const vol = volume * 0.3;
+        // Quiet SFX by default, apply user volume setting
+        const vol = volume * 0.3 * (this.sfxVolumeMult || 1);
 
         if (type === 'shoot' || type === 'fireball') {
             osc.type = 'square';
@@ -1789,7 +1794,7 @@ export class Game {
              }
 
              const gain = this.audioCtx.createGain();
-             gain.gain.value = 0.35;
+             gain.gain.value = (this.bgmVolumeMult || 0.7) * 0.5;
              source.connect(gain);
              // Connect through analyser
              gain.connect(this.analyser);
@@ -1857,7 +1862,7 @@ export class Game {
             source.loop = true; // Loop the game over music
 
             const gain = this.audioCtx.createGain();
-            gain.gain.value = 0.5; // 50% volume
+            gain.gain.value = (this.bgmVolumeMult || 0.7) * 0.7; // scaled by user volume
 
             source.connect(gain);
             gain.connect(this.audioCtx.destination);
@@ -7446,7 +7451,7 @@ export class Game {
 
     selectUpgrade(key, type) {
         // Restore music
-        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(0.35, this.audioCtx.currentTime, 0.1);
+        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(this.getBgmVolume(), this.audioCtx.currentTime, 0.1);
         if (this.currentBgmNode) this.currentBgmNode.playbackRate.setValueAtTime(1.0, this.audioCtx.currentTime);
         this.playSynth('ui');
 
@@ -8883,10 +8888,10 @@ export class Game {
 
         // Generic dirt trail when moving on solid ground
         const horizSpeed = Math.hypot(this.playerBody.velocity.x, this.playerBody.velocity.z);
-        if (nearGround && horizSpeed > 1.2 && this.particleSystem) {
+        if (!this._gfxSkipDust && nearGround && horizSpeed > 1.2 && this.particleSystem) {
             const dustPos = this.playerMesh.position.clone();
             dustPos.y = terrainHeight + 0.05;
-            this.particleSystem.emit(dustPos, 0x8b5a2b, 3);
+            this.particleSystem.emit(dustPos, 0x8b5a2b, Math.ceil(3 * (this._gfxParticleMult || 1)));
         }
 
         // Jump handling: apply an upward impulse; support one mid-air double jump.
@@ -9414,8 +9419,8 @@ export class Game {
                     enemy.body.position.y = minY;
                 }
 
-                // Dirt puff under walking enemies (LOD: skip for distant)
-                if (!isDistant && this.particleSystem && baseSpeed > 0.1) {
+                // Dirt puff under walking enemies (LOD: skip for distant, skip on low quality)
+                if (!isDistant && !this._gfxSkipDust && this.particleSystem && baseSpeed > 0.1) {
                     const dustPos = enemy.mesh.position.clone();
                     dustPos.y = terrainHeightEnemy + 0.05;
                     this.particleSystem.emit(dustPos, 0x7c5a3a, 1);
@@ -10241,7 +10246,7 @@ export class Game {
                         gain.gain.linearRampToValueAtTime(0, this.audioCtx.currentTime + 0.5);
                         src.stop(this.audioCtx.currentTime + 0.5);
                         // Restore main BGM
-                        if(this.currentBgmGain) this.currentBgmGain.gain.linearRampToValueAtTime(0.35, this.audioCtx.currentTime + 1.0);
+                        if(this.currentBgmGain) this.currentBgmGain.gain.linearRampToValueAtTime(this.getBgmVolume(), this.audioCtx.currentTime + 1.0);
                     }, 3000);
                 });
                 
@@ -10458,7 +10463,7 @@ export class Game {
                 setTimeout(() => {
                     // Only restore if we haven't entered a pause menu (like level up) in the meantime
                     if (!this.isPaused) {
-                        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(0.35, this.audioCtx.currentTime, 0.5);
+                        if (this.currentBgmGain) this.currentBgmGain.gain.setTargetAtTime(this.getBgmVolume(), this.audioCtx.currentTime, 0.5);
                         if (this.currentBgmNode) this.currentBgmNode.playbackRate.setValueAtTime(1.0, this.audioCtx.currentTime);
                     }
                 }, 1200);
@@ -10657,7 +10662,7 @@ export class Game {
     selectShrineUpgrade(key, rarity) {
         // Restore audio
         if (this.currentBgmGain) {
-            this.currentBgmGain.gain.setTargetAtTime(0.35, this.audioCtx.currentTime, 0.1);
+            this.currentBgmGain.gain.setTargetAtTime(this.getBgmVolume(), this.audioCtx.currentTime, 0.1);
         }
         if (this.currentBgmNode) {
             this.currentBgmNode.playbackRate.setValueAtTime(1.0, this.audioCtx.currentTime);
@@ -12078,6 +12083,7 @@ export class Game {
     // --- Feature 3: Ambient Arena Particles ---
     // Floating embers/ash that drift through the arena for atmosphere
     updateAmbientParticles(dt) {
+        if (this._gfxSkipAmbient) return; // disabled on medium/low quality
         this.ambientParticleTimer += dt;
 
         // Spawn new ambient particles every ~0.3 seconds (max 30 alive at once)
@@ -12140,24 +12146,20 @@ export class Game {
     // --- Feature 5: Dynamic Combat Intensity ---
     // Adjust lighting and ambience based on nearby enemy density
     updateCombatIntensity(dt) {
+        if (this.graphicsQuality === 'low') return; // skip on low quality
+
         // Target intensity based on nearby enemy count (computed in spawn pacing)
         const target = Math.min(1, this.nearbyEnemyCount / 15);
         // Smooth lerp toward target
         this.combatIntensity += (target - this.combatIntensity) * dt * 2;
 
         // Subtle ambient light boost during intense combat
-        if (this.scene.children) {
-            for (let i = 0; i < this.scene.children.length; i++) {
-                const child = this.scene.children[i];
-                if (child.isAmbientLight) {
-                    // Base intensity 0.6, boost up to 0.9 during intense combat
-                    child.intensity = 0.6 + this.combatIntensity * 0.3;
-                    // Shift color slightly warm during combat
-                    const r = 1.0, g = 1.0 - this.combatIntensity * 0.08, b = 1.0 - this.combatIntensity * 0.15;
-                    child.color.setRGB(r, g, b);
-                    break;
-                }
-            }
+        if (this.ambientLight) {
+            // Base intensity 0.6, boost up to 0.9 during intense combat
+            this.ambientLight.intensity = 0.6 + this.combatIntensity * 0.3;
+            // Shift color slightly warm during combat
+            const r = 1.0, g = 1.0 - this.combatIntensity * 0.08, b = 1.0 - this.combatIntensity * 0.15;
+            this.ambientLight.color.setRGB(r, g, b);
         }
 
         // Subtle vignette / red tint on the renderer when combat is intense
@@ -12169,6 +12171,65 @@ export class Game {
         } else if (this.renderer) {
             this.renderer.setClearColor(new THREE.Color(0.05, 0.02, 0.02));
         }
+    }
+
+    /**
+     * Apply graphics quality settings. Called when quality changes or game starts.
+     * HIGH: everything on (default)
+     * MEDIUM: fewer particles, no ambient embers, reduced fog
+     * LOW: minimal particles, no embers, no dust, no tree sway, no fill/hemi lights, reduced fog
+     */
+    applyGraphicsQuality() {
+        const q = this.graphicsQuality || 'high';
+
+        if (q === 'high') {
+            // Full quality - restore everything
+            if (this.fillLight) this.fillLight.visible = true;
+            if (this.hemiLight) this.hemiLight.visible = true;
+            if (this.scene.fog) this.scene.fog.density = 0.012;
+            this._gfxSkipDust = false;
+            this._gfxSkipAmbient = false;
+            this._gfxSkipTreeSway = false;
+            this._gfxParticleMult = 1.0;
+            if (this.particleSystem) this.particleSystem.particleMult = 1.0;
+        } else if (q === 'medium') {
+            // Medium - reduce particles, disable ambient embers
+            if (this.fillLight) this.fillLight.visible = true;
+            if (this.hemiLight) this.hemiLight.visible = true;
+            if (this.scene.fog) this.scene.fog.density = 0.010;
+            this._gfxSkipDust = false;
+            this._gfxSkipAmbient = true;
+            this._gfxSkipTreeSway = false;
+            this._gfxParticleMult = 0.5;
+            if (this.particleSystem) this.particleSystem.particleMult = 0.5;
+            this._clearAmbientParticles();
+        } else {
+            // Low - maximum performance
+            if (this.fillLight) this.fillLight.visible = false;
+            if (this.hemiLight) this.hemiLight.visible = false;
+            if (this.scene.fog) this.scene.fog.density = 0.006;
+            this._gfxSkipDust = true;
+            this._gfxSkipAmbient = true;
+            this._gfxSkipTreeSway = true;
+            this._gfxParticleMult = 0.25;
+            if (this.particleSystem) this.particleSystem.particleMult = 0.25;
+            this._clearAmbientParticles();
+        }
+    }
+
+    /** Get the user's target BGM volume (for restoring after ducks) */
+    getBgmVolume() {
+        return (this.bgmVolumeMult || 0.7) * 0.5;
+    }
+
+    _clearAmbientParticles() {
+        if (!this.ambientParticles) return;
+        for (const p of this.ambientParticles) {
+            this.scene.remove(p.mesh);
+            p.mesh.geometry.dispose();
+            p.mesh.material.dispose();
+        }
+        this.ambientParticles = [];
     }
 
     updateTimer() {
@@ -12636,7 +12697,7 @@ export class Game {
             this.updateShrines(dt);
             this.updateSlashes(dt);
             this.updateEnemyBullets(dt);
-            if (this.updateLeaves) {
+            if (this.updateLeaves && this.graphicsQuality !== 'low') {
                 this.updateLeaves(dt);
             }
             this.particleSystem.update(dt);
@@ -12646,14 +12707,16 @@ export class Game {
             this.updateAmbientParticles(dt);
             this.updateCombatIntensity(dt);
 
-            // Tree animation (sway)
-            const time = performance.now() * 0.001;
-            this.scene.traverse(obj => {
-                if (obj.userData.isTree) {
-                    const offset = obj.userData.swayOffset || 0;
-                    obj.rotation.z = Math.sin(time + offset) * 0.05;
-                }
-            });
+            // Tree animation (sway) - skip on low quality
+            if (!this._gfxSkipTreeSway) {
+                const time = performance.now() * 0.001;
+                this.scene.traverse(obj => {
+                    if (obj.userData.isTree) {
+                        const offset = obj.userData.swayOffset || 0;
+                        obj.rotation.z = Math.sin(time + offset) * 0.05;
+                    }
+                });
+            }
 
             // Character auras (Upgraded)
             if (this.characterKey === 'GIGACHAD' && this.characterConfig) {

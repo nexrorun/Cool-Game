@@ -295,8 +295,10 @@ export function addTotalKills(kills) {
 /** Default settings */
 const DEFAULT_SETTINGS = Object.freeze({
     pixelMode: true,
-    musicVolume: 0.7,
-    sfxVolume: 1.0,
+    menuMusicVolume: 0.8,
+    gameplayMusicVolume: 0.7,
+    sfxVolume: 0.8,
+    graphicsQuality: 'high',
     screenShake: true,
     showDamageNumbers: true
 });

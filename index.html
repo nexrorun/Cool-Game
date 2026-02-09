@@ -2056,22 +2056,64 @@
         </div>
     </div>
 
-    <div id="settings-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#000; border:4px solid #fff; padding:20px; z-index:150; width:340px; color:#fff; box-shadow: 0 0 30px rgba(0,0,0,0.9);">
-        <h3 style="color:#ffd700; margin-bottom:15px; text-align:center;">SYSTEM SETTINGS</h3>
-        
-        <div style="margin-bottom:20px;">
-            <div style="font-size:0.7rem; color:#aaa; margin-bottom:5px;">GRAPHICS</div>
+    <div id="settings-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.95); border:4px solid #ffd700; padding:24px; z-index:150; width:380px; color:#fff; box-shadow: 0 0 40px rgba(255,215,0,0.15), 0 0 60px rgba(0,0,0,0.9); max-height:85vh; overflow-y:auto;">
+        <h3 style="color:#ffd700; margin-bottom:18px; text-align:center; font-size:1.1rem; letter-spacing:0.1em;">SETTINGS</h3>
+
+        <!-- AUDIO SECTION -->
+        <div style="margin-bottom:18px;">
+            <div style="font-size:0.7rem; color:#ffd700; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:4px;">AUDIO</div>
+
+            <div style="margin-bottom:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <label for="setting-menu-music-vol" style="font-size:0.7rem; color:#ccc;">Menu Music</label>
+                    <span id="setting-menu-music-val" style="font-size:0.65rem; color:#aaa; min-width:32px; text-align:right;">80%</span>
+                </div>
+                <input type="range" id="setting-menu-music-vol" min="0" max="100" value="80" style="width:100%; accent-color:#ffd700; cursor:pointer;">
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <label for="setting-gameplay-music-vol" style="font-size:0.7rem; color:#ccc;">Gameplay Music</label>
+                    <span id="setting-gameplay-music-val" style="font-size:0.65rem; color:#aaa; min-width:32px; text-align:right;">70%</span>
+                </div>
+                <input type="range" id="setting-gameplay-music-vol" min="0" max="100" value="70" style="width:100%; accent-color:#ffd700; cursor:pointer;">
+            </div>
+
+            <div style="margin-bottom:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <label for="setting-sfx-vol" style="font-size:0.7rem; color:#ccc;">Sound Effects</label>
+                    <span id="setting-sfx-val" style="font-size:0.65rem; color:#aaa; min-width:32px; text-align:right;">80%</span>
+                </div>
+                <input type="range" id="setting-sfx-vol" min="0" max="100" value="80" style="width:100%; accent-color:#ffd700; cursor:pointer;">
+            </div>
+        </div>
+
+        <!-- GRAPHICS SECTION -->
+        <div style="margin-bottom:18px;">
+            <div style="font-size:0.7rem; color:#ffd700; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:4px;">GRAPHICS</div>
+
+            <div style="margin-bottom:10px;">
+                <div style="font-size:0.7rem; color:#ccc; margin-bottom:6px;">Quality</div>
+                <div id="graphics-quality-btns" style="display:flex; gap:6px;">
+                    <button id="gfx-high" class="gfx-btn gfx-btn-active" style="flex:1; padding:8px 0; font-size:0.7rem; border:2px solid #00ff88; background:rgba(0,255,136,0.15); color:#00ff88; cursor:pointer; transition:all 0.15s;">HIGH</button>
+                    <button id="gfx-medium" class="gfx-btn" style="flex:1; padding:8px 0; font-size:0.7rem; border:2px solid #555; background:transparent; color:#aaa; cursor:pointer; transition:all 0.15s;">MEDIUM</button>
+                    <button id="gfx-low" class="gfx-btn" style="flex:1; padding:8px 0; font-size:0.7rem; border:2px solid #555; background:transparent; color:#aaa; cursor:pointer; transition:all 0.15s;">LOW</button>
+                </div>
+                <div id="gfx-desc" style="font-size:0.55rem; color:#666; margin-top:6px; line-height:1.4;">Full visual quality. All particles, lighting, and effects enabled.</div>
+            </div>
+
             <div class="pixel-toggle">
                 <input type="checkbox" id="pixel-setting-check" checked>
                 <label for="pixel-setting-check">RETRO PIXEL FILTER</label>
             </div>
         </div>
 
+        <!-- DEV / DEBUG SECTION -->
         <div style="border-top:1px dashed #444; padding-top:15px;">
             <div style="font-size:0.7rem; color:#ff4444; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                <span>⚠ DEV / DEBUG</span>
+                <span>DEV / DEBUG</span>
             </div>
-            
+
             <div style="margin-bottom:12px;">
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
                     <input type="checkbox" id="debug-log-check" style="accent-color:#ff0000;">
@@ -2089,7 +2131,7 @@
             </div>
         </div>
 
-        <button id="settings-close" style="width:100%; margin-top:20px; border-color:#666; background:#111;">CLOSE</button>
+        <button id="settings-close" style="width:100%; margin-top:20px; padding:10px; border:2px solid #ffd700; background:rgba(255,215,0,0.1); color:#ffd700; font-size:0.85rem; cursor:pointer;">CLOSE</button>
     </div>
 
     <div id="big-map-overlay">
@@ -2171,6 +2213,7 @@
                 <div style="margin-top:20px; display:flex; gap:10px;">
                     <button id="menu-bestiary-btn" class="icon-btn" style="background:rgba(0,0,0,0.5);">BESTIARY</button>
                     <button id="menu-forge-btn" class="icon-btn" style="background:rgba(0,0,0,0.5);">FORGE</button>
+                    <button id="menu-settings-btn" class="icon-btn" style="background:rgba(0,0,0,0.5);">SETTINGS</button>
                 </div>
             </div>
 

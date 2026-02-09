@@ -197,7 +197,10 @@ export class ParticleSystem {
     emit(pos, color, count = 10, options = {}) {
         const { speed = 8, upwardBias = 5, lifetime = 1 } = options;
 
-        for (let i = 0; i < count; i++) {
+        // Apply graphics quality particle multiplier
+        const adjustedCount = Math.max(1, Math.ceil(count * (this.particleMult || 1)));
+
+        for (let i = 0; i < adjustedCount; i++) {
             const mesh = this.meshPool.find(m => !m.visible);
             if (!mesh) return; // Pool exhausted
 
